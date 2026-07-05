@@ -1,4 +1,29 @@
-(() => {
+(async () => {
+  async function refreshForLatestRelease() {
+    try {
+      const manifestUrl = new URL('version.json', location.href);
+      manifestUrl.searchParams.set('_', Date.now().toString());
+
+      const response = await fetch(manifestUrl, { cache: 'no-store' });
+      if (!response.ok) return false;
+
+      const { version } = await response.json();
+      if (!version) return false;
+
+      const currentUrl = new URL(location.href);
+      if (currentUrl.searchParams.get('v') === version) return false;
+
+      currentUrl.searchParams.set('v', version);
+      location.replace(currentUrl);
+      return true;
+    } catch (error) {
+      console.warn('Could not check for a newer Splatris release.', error);
+      return false;
+    }
+  }
+
+  if (await refreshForLatestRelease()) return;
+
   const screens = new Map(
     [...document.querySelectorAll('[data-screen]')].map(screen => [screen.dataset.screen, screen])
   );
@@ -56,9 +81,8 @@
     document.body.dataset.activeScreen = target;
 
     if (updateHash) {
-      const nextUrl = target === 'menu'
-        ? `${location.pathname}${location.search}`
-        : `${location.pathname}${location.search}#${target}`;
+      const nextUrl = new URL(location.href);
+      nextUrl.hash = target === 'menu' ? '' : target;
       history.replaceState(null, '', nextUrl);
     }
     window.scrollTo(0, 0);
