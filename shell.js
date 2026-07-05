@@ -27,8 +27,10 @@
   const screens = new Map(
     [...document.querySelectorAll('[data-screen]')].map(screen => [screen.dataset.screen, screen])
   );
-  const gameHost = document.getElementById('game-component');
+  let gameHost = document.getElementById('game-component');
   let gameLoadPromise = null;
+  let selectedRole = sessionStorage.getItem('splatris-role') || 'platformer';
+  let loadedRole = null;
 
   function screenFromLocation() {
     const hash = location.hash.slice(1);
@@ -36,7 +38,17 @@
     return screens.has(hash) ? hash : 'menu';
   }
 
+  function resetGameHostForRole() {
+    if (!gameHost.shadowRoot || loadedRole === selectedRole) return;
+    const replacement = gameHost.cloneNode(false);
+    gameHost.replaceWith(replacement);
+    gameHost = replacement;
+    gameLoadPromise = null;
+    loadedRole = null;
+  }
+
   async function loadGameComponent() {
+    resetGameHostForRole();
     if (gameHost.shadowRoot) return;
     if (gameLoadPromise) return gameLoadPromise;
 
@@ -44,7 +56,10 @@
       const response = await fetch('splatris.html', { cache: 'no-store' });
       if (!response.ok) throw new Error(`Could not load single-player demo (${response.status}).`);
 
-      const source = await response.text();
+      let source = await response.text();
+      if (typeof window.patchSplatrisSource === 'function') {
+        source = window.patchSplatrisSource(source, selectedRole);
+      }
       const parsed = new DOMParser().parseFromString(source, 'text/html');
       const styleText = parsed.querySelector('style')?.textContent ?? '';
       const scriptText = parsed.querySelector('script')?.textContent ?? '';
@@ -62,6 +77,7 @@
         .replaceAll('document.getElementById', 'root.getElementById')
         .replaceAll('document.querySelectorAll', 'root.querySelectorAll');
       new Function('root', isolatedScript)(root);
+      loadedRole = selectedRole;
     })().catch(error => {
       gameLoadPromise = null;
       gameHost.textContent = error.message;
@@ -91,6 +107,10 @@
   document.addEventListener('click', event => {
     const trigger = event.target.closest('[data-open-screen]');
     if (!trigger) return;
+    if (trigger.dataset.gameRole) {
+      selectedRole = trigger.dataset.gameRole;
+      sessionStorage.setItem('splatris-role', selectedRole);
+    }
     showScreen(trigger.dataset.openScreen).catch(console.error);
   });
 
