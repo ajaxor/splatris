@@ -4,23 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#12101c" />
-    <title>Splatris 0.1.8</title>
-    <link rel="stylesheet" href="styles.css?v=0.1.8-latest" />
-    <link rel="stylesheet" href="shell.css?v=0.1.8-latest" />
+    <title>Splatris 0.1.9</title>
+    <link rel="stylesheet" href="styles.css?v=0.1.9" />
+    <link rel="stylesheet" href="shell.css?v=0.1.9" />
   </head>
   <body>
-    <section class="app-screen" data-screen="menu">
+    <section id="menu-screen" class="app-screen" data-screen="menu">
       <main class="menu-card">
         <h1>SPLATRIS</h1>
-        <p class="build-version">Version 0.1.8 · commit dbcb7</p>
+        <p class="build-version">Version 0.1.9 · commit 0a284</p>
         <p class="menu-tagline">run. jump. don’t get squished.</p>
         <nav class="menu-actions" aria-label="Game modes">
           <button type="button" data-open-screen="single-player">Single Player</button>
+          <button class="secondary" type="button" data-open-screen="multiplayer">Multiplayer Demo</button>
         </nav>
+        <p class="menu-note">Both demos run inside one persistent browser page.</p>
       </main>
     </section>
 
-    <section class="app-screen" data-screen="single-player" hidden>
+    <section id="single-player-screen" class="app-screen" data-screen="single-player" hidden>
       <main class="menu-card">
         <h1>SINGLE PLAYER</h1>
         <p class="menu-tagline">Choose which side you control.</p>
@@ -32,12 +34,61 @@
       </main>
     </section>
 
-    <section class="app-screen" data-screen="game" hidden>
+    <section id="game-screen" class="app-screen" data-screen="game" hidden>
       <button class="app-back game-back" type="button" data-open-screen="single-player">← Roles</button>
       <div id="game-component" aria-live="polite"></div>
     </section>
 
-    <script src="game-role-patch.js?v=0.1.8-latest"></script>
-    <script src="shell.js?v=0.1.8-latest"></script>
+    <section id="multiplayer-screen" class="app-screen" data-screen="multiplayer" hidden>
+      <main class="app-shell">
+        <header class="hero">
+          <button class="secondary app-back" type="button" data-open-screen="menu">← Menu</button>
+          <p class="eyebrow">Peer-to-peer connection test</p>
+          <h1>Multiplayer Test</h1>
+          <p class="build-version">Version 0.1.9 · commit 0a284</p>
+          <p class="intro">Connect up to four phones using QR codes, then test synchronized player buttons.</p>
+        </header>
+
+        <section class="connection-panel">
+          <button id="host-room" type="button">Host room</button>
+          <p id="multiplayer-status" class="status" aria-live="polite">Tap Host room on one phone.</p>
+        </section>
+
+        <section id="host-tools" class="panel hidden">
+          <h2>Join this room</h2>
+          <p class="help">Each joining phone scans a different player QR code.</p>
+          <div id="qr-list" class="qr-list"></div>
+        </section>
+
+        <section id="guest-tools" class="panel hidden">
+          <h2>Show this QR to the host</h2>
+          <p class="help">Keep this screen open while the host scans it.</p>
+          <div id="guest-answer-qr" class="answer-qr" aria-label="Guest answer QR code"></div>
+        </section>
+
+        <section id="answer-panel" class="panel hidden">
+          <h2>Connect a player</h2>
+          <p class="help">Open the camera below and point it at the joining player’s answer QR.</p>
+          <button id="scan-answer" type="button">Open camera to scan player QR</button>
+          <div id="scanner" class="scanner hidden">
+            <video id="scanner-video" playsinline muted></video>
+            <canvas id="scanner-canvas" class="hidden"></canvas>
+            <div class="scan-frame" aria-hidden="true"></div>
+            <button id="stop-scan" class="secondary" type="button">Close camera</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Connection test</h2>
+          <div id="player-buttons" class="player-grid" aria-live="polite"></div>
+        </section>
+      </main>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="app.js?v=0.1.9"></script>
+    <script src="hotfix.js?v=0.1.9"></script>
+    <script src="game-role-patch.js?v=0.1.9"></script>
+    <script src="shell.js?v=0.1.9"></script>
   </body>
 </html>
