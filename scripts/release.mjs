@@ -84,12 +84,12 @@ function parseArguments(args) {
 function updateIndex(indexHtml, version, commit) {
   let updated = indexHtml.replace(
     /(["'](?:styles|shell)\.css\?v=)[^"']+/g,
-    `$1${version}`,
+    (_match, prefix) => `${prefix}${version}`,
   );
 
   updated = updated.replace(
     /(["'](?:app|hotfix|shell)\.js\?v=)[^"']+/g,
-    `$1${version}`,
+    (_match, prefix) => `${prefix}${version}`,
   );
 
   updated = updated.replace(
@@ -110,7 +110,11 @@ function verifyIndex(indexHtml, version) {
   ];
 
   const missing = expectedAssets.filter(asset => !indexHtml.includes(asset));
-  const labelPattern = new RegExp(`Version\\s+${version.replaceAll('.', '\\.')}\\s+·\\s+commit\\s+[0-9a-f]{5}`, 'i');
+  const escapedVersion = version.replaceAll('.', '\\.');
+  const labelPattern = new RegExp(
+    `Version\\s+${escapedVersion}\\s+·\\s+commit\\s+[0-9a-f]{5}`,
+    'i',
+  );
 
   if (missing.length > 0) fail(`index.html is missing release tags: ${missing.join(', ')}`);
   if (!labelPattern.test(indexHtml)) fail(`index.html does not show Version ${version} with a five-character commit.`);
