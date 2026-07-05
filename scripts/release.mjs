@@ -5,7 +5,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 
 const VERSION_FILE = new URL('../version.json', import.meta.url);
-const INDEX_FILE = new URL('../index.html', import.meta.url);
+const PAGE_FILES = [
+  { name: 'index.html', url: new URL('../index.html', import.meta.url) },
+  { name: 'latest.html', url: new URL('../latest.html', import.meta.url) },
+];
 const VALID_BUMPS = new Set(['patch', 'minor', 'major']);
 
 function fail(message) {
@@ -81,8 +84,8 @@ function parseArguments(args) {
   return options;
 }
 
-function updateIndex(indexHtml, version, commit) {
-  let updated = indexHtml.replace(
+function updatePage(pageHtml, version, commit) {
+  let updated = pageHtml.replace(
     /(["'](?:styles|shell)\.css\?v=)[^"']+/g,
     (_match, prefix) => `${prefix}${version}`,
   );
@@ -100,7 +103,7 @@ function updateIndex(indexHtml, version, commit) {
   return updated;
 }
 
-function verifyIndex(indexHtml, version) {
+function verifyPage(pageName, pageHtml, version) {
   const expectedAssets = [
     `styles.css?v=${version}`,
     `shell.css?v=${version}`,
@@ -110,15 +113,26 @@ function verifyIndex(indexHtml, version) {
     `shell.js?v=${version}`,
   ];
 
-  const missing = expectedAssets.filter(asset => !indexHtml.includes(asset));
+  const missing = expectedAssets.filter(asset => !pageHtml.includes(asset));
   const escapedVersion = version.replaceAll('.', '\\.');
   const labelPattern = new RegExp(
     `Version\\s+${escapedVersion}\\s+·\\s+commit\\s+[0-9a-f]{5}`,
     'i',
   );
 
-  if (missing.length > 0) fail(`index.html is missing release tags: ${missing.join(', ')}`);
-  if (!labelPattern.test(indexHtml)) fail(`index.html does not show Version ${version} with a five-character commit.`);
+  if (missing.length > 0) fail(`${pageName} is missing release tags: ${missing.join(', ')}`);
+  if (!labelPattern.test(pageHtml)) {
+    fail(`${pageName} does not show Version ${version} with a five-character commit.`);
+  }
+}
+
+async function readPages() {
+  return Promise.all(
+    PAGE_FILES.map(async page => ({
+      ...page,
+      html: await readFile(page.url, 'utf8'),
+    })),
+  );
 }
 
 async function main() {
@@ -126,10 +140,10 @@ async function main() {
   const manifest = JSON.parse(await readFile(VERSION_FILE, 'utf8'));
   const currentVersion = manifest.version;
   parseVersion(currentVersion);
+  const pages = await readPages();
 
   if (options.check) {
-    const indexHtml = await readFile(INDEX_FILE, 'utf8');
-    verifyIndex(indexHtml, currentVersion);
+    for (const page of pages) verifyPage(page.name, page.html, currentVersion);
     console.log(`Release metadata is consistent at ${currentVersion}.`);
     return;
   }
@@ -140,17 +154,23 @@ async function main() {
 
   const nextVersion = options.explicitVersion ?? bumpVersion(currentVersion, options.bump);
   const commit = options.commit ?? currentCommit();
-  const indexHtml = await readFile(INDEX_FILE, 'utf8');
-  const updatedIndex = updateIndex(indexHtml, nextVersion, commit);
+  const updatedPages = pages.map(page => ({
+    ...page,
+    updatedHtml: updatePage(page.html, nextVersion, commit),
+  }));
 
-  if (updatedIndex === indexHtml) fail('No release metadata was updated in index.html.');
+  if (updatedPages.every(page => page.updatedHtml === page.html)) {
+    fail('No release metadata was updated in the published pages.');
+  }
 
   await writeFile(VERSION_FILE, `${JSON.stringify({ version: nextVersion }, null, 2)}\n`);
-  await writeFile(INDEX_FILE, updatedIndex);
-  verifyIndex(updatedIndex, nextVersion);
+  for (const page of updatedPages) {
+    await writeFile(page.url, page.updatedHtml);
+    verifyPage(page.name, page.updatedHtml, nextVersion);
+  }
 
   console.log(`Prepared Splatris ${nextVersion} · commit ${commit}`);
-  console.log('Updated version.json, the visible build label, and all local asset cache tags.');
+  console.log('Updated version.json, both published pages, visible build labels, and all local asset cache tags.');
 }
 
 main().catch(error => fail(error instanceof Error ? error.message : String(error)));
