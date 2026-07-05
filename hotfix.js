@@ -3,30 +3,34 @@
 const originalGzip = gzip;
 const originalGunzip = gunzip;
 
-gzip = async function gzipWithFallback(bytes) {
-  if ("CompressionStream" in window) {
-    const compressed = await originalGzip(bytes);
-    const result = new Uint8Array(compressed.length + 1);
-    result[0] = 1;
-    result.set(compressed, 1);
-    return result;
+// Keep newly generated signals in the original raw-gzip format. The joining
+// page begins decoding its URL before this file loads, so adding a format byte
+// here would make an otherwise valid join URL fail during initial page load.
+gzip = async function gzipCompatible(bytes) {
+  if (!("CompressionStream" in window)) {
+    throw new Error("This browser cannot create compressed QR signals. Please update the browser.");
   }
-
-  const result = new Uint8Array(bytes.length + 1);
-  result[0] = 0;
-  result.set(bytes, 1);
-  return result;
+  return originalGzip(bytes);
 };
 
-gunzip = async function gunzipWithFallback(bytes) {
-  if (bytes.length < 2) throw new Error("Signal is empty.");
-  const format = bytes[0];
-  const payload = bytes.slice(1);
+// Decode current raw-gzip signals and remain tolerant of the briefly deployed
+// prefixed format so an already-open answer screen can still be scanned.
+gunzip = async function gunzipCompatible(bytes) {
+  if (!("DecompressionStream" in window)) {
+    throw new Error("This browser cannot read compressed QR signals. Please update the browser.");
+  }
 
-  if (format === 0) return payload;
-  if (format === 1 && "DecompressionStream" in window) return originalGunzip(payload);
-  if (format === 1) throw new Error("Compressed QR signals are not supported by this browser.");
-  throw new Error("Unknown QR signal format.");
+  try {
+    return await originalGunzip(bytes);
+  } catch (rawError) {
+    if (bytes.length > 1 && bytes[0] === 1) {
+      return originalGunzip(bytes.slice(1));
+    }
+    if (bytes.length > 1 && bytes[0] === 0) {
+      return bytes.slice(1);
+    }
+    throw rawError;
+  }
 };
 
 waitForIce = function waitForIceResponsive(peerConnection, timeoutMs = 4000) {
