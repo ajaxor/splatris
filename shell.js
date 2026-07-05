@@ -5,6 +5,12 @@
   const gameHost = document.getElementById('game-component');
   let gameLoadPromise = null;
 
+  function screenFromLocation() {
+    const hash = location.hash.slice(1);
+    if (new URLSearchParams(hash).has('join')) return 'multiplayer';
+    return screens.has(hash) ? hash : 'menu';
+  }
+
   async function loadGameComponent() {
     if (gameHost.shadowRoot) return;
     if (gameLoadPromise) return gameLoadPromise;
@@ -64,8 +70,8 @@
   });
 
   window.addEventListener('hashchange', () => {
-    showScreen(location.hash.slice(1) || 'menu', false).catch(console.error);
+    showScreen(screenFromLocation(), false).catch(console.error);
   });
 
-  showScreen(location.hash.slice(1) || 'menu', false).catch(console.error);
+  showScreen(screenFromLocation(), false).catch(console.error);
 })();
