@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;600&display=swap');
+
+:root {
+  --shell-bg: #12101c;
+  --shell-panel: #1c1930;
+  --shell-ink: #f2eefc;
+  --shell-dim: #9d94c2;
+  --shell-splat: #ff3d68;
+}
+
+.app-screen[hidden] { display: none !important; }
+
+body[data-active-screen="menu"],
+body[data-active-screen="game"] {
+  padding: 0;
+  background: var(--shell-bg);
+  color: var(--shell-ink);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+#menu-screen {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(180, 107, 255, 0.14), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(63, 214, 232, 0.12), transparent 40%),
+    var(--shell-bg);
+}
+
+.menu-card {
+  width: min(100%, 480px);
+  padding: 34px 24px 28px;
+  text-align: center;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(28, 25, 48, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.menu-card h1 {
+  margin: 0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(28px, 9vw, 46px);
+  letter-spacing: 1px;
+  text-shadow: 4px 4px 0 var(--shell-splat), 8px 8px 0 rgba(0, 0, 0, 0.35);
+}
+
+.menu-tagline {
+  margin: 18px 0 30px;
+  color: var(--shell-dim);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.menu-actions { display: grid; gap: 14px; }
+.menu-actions button { border-radius: 9px; font-family: 'Press Start 2P', monospace; font-size: 12px; }
+.menu-note { margin: 24px 0 0; color: var(--shell-dim); font-size: 12px; line-height: 1.5; }
+
+#game-screen {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+#game-component { min-height: 100svh; }
+.game-back { position: fixed; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); z-index: 100; }
+.app-back { min-height: 40px; padding: 8px 12px; margin-bottom: 14px; }
+
+#multiplayer-screen { min-height: 100svh; }
