@@ -12,21 +12,43 @@ Published game: https://ajaxor.github.io/splatris/
 
 Every change pushed to this repository must update the visible release identifier on the title screen.
 
-The identifier must use this format:
+The identifier uses this format:
 
 `Version X.Y.Z · commit abcde`
 
+`version.json` is the source of truth for the semantic version. Do not manually edit version strings or cache-busting query parameters in `index.html`.
+
+Prepare release metadata with the dependency-free release tool:
+
+```bash
+npm run release -- patch
+npm run release -- minor
+npm run release -- major
+```
+
+You may also set an explicit version or source commit:
+
+```bash
+npm run release -- 1.2.3 --commit abcde
+```
+
+After preparing a release, verify metadata consistency with:
+
+```bash
+npm run release:check
+```
+
 Rules:
 
-1. Increment the semantic version for every pushed update.
+1. Run the release tool for every pushed update.
    - Patch: bug fix, documentation, agent-instruction, or small adjustment.
    - Minor: new user-visible feature.
    - Major: incompatible redesign.
-2. Set the commit value to the first five characters of the functional source commit being released.
-3. Update the cache-busting query strings for local CSS and JavaScript files to the same semantic version.
+2. The commit value should identify the functional source commit being released. By default the tool uses the current `HEAD`; pass `--commit` when another commit should be shown.
+3. The release tool updates `version.json`, the visible build identifier, and all local CSS and JavaScript cache-busting query strings together.
 4. Keep the visible identifier near the main title so users can confirm which GitHub Pages build is loaded.
 5. Because changing the displayed hash creates a new metadata commit, the hash may refer to the immediately preceding functional commit rather than the metadata-only version-label commit.
-6. Never push an update without updating this identifier.
+6. Never push an update with inconsistent release metadata. Run `npm run release:check` before finishing.
 
 ## Working principles
 
@@ -68,6 +90,7 @@ Before finishing a task:
 - Verify that the game still loads from a static file or simple static server.
 - Check both mobile/touch and desktop/keyboard behavior when the change affects interaction.
 - Confirm that multiplayer changes do not break single-player or local behavior, and vice versa.
+- Run `npm run release:check` after preparing the release.
 - Report what was tested and clearly identify anything that was not tested.
 
 ## Required completion response
