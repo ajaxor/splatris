@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Splatris</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;600&display=swap');
+
+  :root{
+    --bg-deep:#12101c;
+    --bg-panel:#1c1930;
+    --ink:#f2eefc;
+    --ink-dim:#9d94c2;
+    --splat:#ff3d68;
+    --i-cyan:#3fd6e8;
+    --o-yellow:#ffd23f;
+    --t-purple:#b46bff;
+    --s-green:#4ee38a;
+    --z-red:#ff5c5c;
+    --j-blue:#4d7bff;
+    --l-orange:#ff9b40;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(180,107,255,0.12), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(63,214,232,0.10), transparent 40%),
+      var(--bg-deep);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #wrap{
+    display:flex; flex-direction:column; align-items:center;
+    gap:10px;
+    padding:14px;
+    width:100%;
+    max-width:520px;
+  }
+
+  h1{
+    font-family:'Press Start 2P', monospace;
+    font-size:clamp(20px, 6vw, 30px);
+    margin:4px 0 0 0;
+    letter-spacing:1px;
+    color:var(--ink);
+    text-shadow: 3px 3px 0 var(--splat), 6px 6px 0 rgba(0,0,0,0.35);
+  }
+  .tagline{
+    font-size:12px;
+    color:var(--ink-dim);
+    letter-spacing:0.5px;
+    margin-bottom:4px;
+    text-align:center;
+  }
+
+  #stage{
+    position:relative;
+    width:100%;
+    max-width:480px;
+    aspect-ratio: 480 / 640;
+    border-radius:10px;
+    overflow:hidden;
+    background:linear-gradient(180deg, #1a1730 0%, #14111f 70%, #0e0c17 100%);
+    box-shadow:
+      0 0 0 2px rgba(255,255,255,0.06),
+      0 0 0 3px var(--bg-panel),
+      0 20px 50px rgba(0,0,0,0.55);
+  }
+  canvas{
+    display:block;
+    width:100%;
+    height:100%;
+  }
+
+  #hud{
+    position:absolute; top:10px; left:0; right:0;
+    display:flex; justify-content:space-between;
+    padding:0 12px;
+    font-family:'Press Start 2P', monospace;
+    font-size:11px;
+    color:var(--ink);
+    text-shadow:0 2px 0 rgba(0,0,0,0.5);
+    pointer-events:none;
+  }
+  #hud span.label{ color:var(--ink-dim); }
+
+  #overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+    background:rgba(10,8,16,0.82);
+    backdrop-filter: blur(2px);
+    text-align:center;
+    padding:20px;
+  }
+  #overlay.hidden{ display:none; }
+  #overlay h2{
+    font-family:'Press Start 2P', monospace;
+    color:var(--splat);
+    font-size:clamp(16px,5vw,22px);
+    margin:0;
+    text-shadow:2px 2px 0 rgba(0,0,0,0.5);
+  }
+  #overlay p{
+    color:var(--ink-dim);
+    font-size:13px;
+    max-width:280px;
+    line-height:1.5;
+    margin:0;
+  }
+  #overlay .big-score{
+    font-family:'Press Start 2P', monospace;
+    font-size:24px;
+    color:var(--o-yellow);
+  }
+
+  button.action{
+    font-family:'Press Start 2P', monospace;
+    font-size:12px;
+    background:var(--splat);
+    color:#1a1030;
+    border:none;
+    padding:12px 20px;
+    border-radius:8px;
+    cursor:pointer;
+    box-shadow:0 4px 0 #a4123a;
+    transition:transform 0.05s ease;
+  }
+  button.action:active{
+    transform:translateY(3px);
+    box-shadow:0 1px 0 #a4123a;
+  }
+
+  #diffRow{
+    display:flex;
+    gap:8px;
+  }
+  .diffBtn{
+    font-family:'Press Start 2P', monospace;
+    font-size:10px;
+    padding:9px 12px;
+    border-radius:7px;
+    background:var(--bg-panel);
+    color:var(--ink-dim);
+    border:2px solid rgba(255,255,255,0.08);
+    cursor:pointer;
+    user-select:none;
+  }
+  .diffBtn.active{
+    color:#1a1030;
+    background:var(--o-yellow);
+    border-color:var(--o-yellow);
+  }
+
+  #touch-controls{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    width:100%;
+    max-width:480px;
+    gap:10px;
+    user-select:none;
+  }
+  .joystick-wrap{
+    flex:1.6;
+    display:flex;
+    align-items:center;
+  }
+  #joystick{
+    position:relative;
+    width:92px;
+    height:92px;
+    border-radius:50%;
+    background:var(--bg-panel);
+    border:2px solid rgba(255,255,255,0.08);
+    touch-action:none;
+  }
+  #joystick::after{
+    content:'';
+    position:absolute;
+    inset:8px;
+    border-radius:50%;
+    border:1px dashed rgba(255,255,255,0.10);
+  }
+  #joystickKnob{
+    position:absolute;
+    width:46px;
+    height:46px;
+    border-radius:50%;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:var(--splat);
+    box-shadow:0 4px 0 #a4123a;
+    transition:transform 0.15s ease;
+  }
+  .tbtn{
+    flex:1;
+    font-family:'Press Start 2P', monospace;
+    font-size:11px;
+    background:var(--bg-panel);
+    color:var(--ink);
+    border:2px solid rgba(255,255,255,0.08);
+    border-radius:8px;
+    padding:16px 0;
+    text-align:center;
+    touch-action:none;
+  }
+  .tbtn:active{ background:#2a2448; }
+  #jumpBtn{
+    flex:1;
+    color:var(--o-yellow);
+    font-size:12px;
+  }
+
+  .hint{
+    font-size:11px;
+    color:var(--ink-dim);
+    text-align:center;
+  }
+
+  @media (min-width:700px){
+    #touch-controls{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>SPLATRIS</h1>
+  <div class="tagline">run. jump. don't get squished.</div>
+
+  <div id="stage">
+    <canvas id="game" width="480" height="640"></canvas>
+    <div id="hud">
+      <span><span class="label">TIME </span><span id="timeVal">0.0</span></span>
+      <span id="muteBtn" style="pointer-events:auto; cursor:pointer;">🔊</span>
+      <span><span class="label">BEST </span><span id="bestVal">0.0</span></span>
+    </div>
+    <div id="overlay">
+      <h2 id="overlayTitle">SPLATRIS</h2>
+      <p id="overlayText">Tetris blocks rain down at random and stack up. Use ← → or A/D to run,<br>space / ↑ / W to jump. Get squished and it's over.<br>Fill a row edge-to-edge to clear it — climb to the top to win.</p>
+      <div id="diffRow">
+        <div class="diffBtn" data-diff="easy">EASY</div>
+        <div class="diffBtn" data-diff="medium">MEDIUM</div>
+        <div class="diffBtn" data-diff="hard">HARD</div>
+      </div>
+      <button class="action" id="startBtn">START</button>
+    </div>
+  </div>
+
+  <div id="touch-controls">
+    <div class="joystick-wrap">
+      <div id="joystick">
+        <div id="joystickKnob"></div>
+      </div>
+    </div>
+    <div class="tbtn" id="jumpBtn">JUMP</div>
+  </div>
+  <div class="hint">arrow keys / A D to move, or drag the circle · space or up to jump</div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CELL = 24;
+  const COLS = W / CELL; // 20
+  const GROUND_Y = H - CELL; // top surface y of the ground row
+
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayText = document.getElementById('overlayText');
+  const startBtn = document.getElementById('startBtn');
+  const timeVal = document.getElementById('timeVal');
+  const bestVal = document.getElementById('bestVal');
+
+  let best = 0;
+  try { best = parseFloat(localStorage_fallback_get()) || 0; } catch(e) { best = 0; }
+  function localStorage_fallback_get(){ return 0; } // no persistent storage available in artifact sandbox
+
+  // ---------- Tetromino shapes (4x4 grids of [x,y] cell offsets) ----------
+  const SHAPES = {
+    I: { cells:[[0,1],[1,1],[2,1],[3,1]], hue:190 },
+    O: { cells:[[1,0],[2,0],[1,1],[2,1]], hue:48  },
+    T: { cells:[[1,0],[0,1],[1,1],[2,1]], hue:265 },
+    S: { cells:[[1,0],[2,0],[0,1],[1,1]], hue:140 },
+    Z: { cells:[[0,0],[1,0],[1,1],[2,1]], hue:355 },
+    J: { cells:[[0,0],[0,1],[1,1],[2,1]], hue:222 },
+    L: { cells:[[2,0],[0,1],[1,1],[2,1]], hue:28  }
+  };
+  const SHAPE_KEYS = Object.keys(SHAPES);
+  const TEXTURES = ['plain', 'stripes', 'dots', 'grid'];
+
+  function randomPieceColor(hue){
+    const h = hue + (Math.random()*26 - 13);
+    const s = 62 + Math.random()*18;
+    const l = 48 + Math.random()*16;
+    return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
+  }
+  function randomTexture(){
+    return TEXTURES[Math.floor(Math.random()*TEXTURES.length)];
+  }
+
+  // ---------- Game state ----------
+  const WIN_Y = CELL * 1.1; // player top y that counts as "reached the top"
+  const SQUISH_DURATION = 60; // frames of funny squish animation before game-over screen
+
+  const DIFFS = {
+    easy:   { fallBase:0.8, fallScale:0.025, fallCap:3.0,  spawnBase:115, spawnScale:1.2, spawnMin:52 },
+    medium: { fallBase:1.1, fallScale:0.045, fallCap:5.0,  spawnBase:95,  spawnScale:1.6, spawnMin:34 },
+    hard:   { fallBase:1.6, fallScale:0.065, fallCap:6.5,  spawnBase:75,  spawnScale:1.9, spawnMin:26 }
+  };
+  let difficulty = 'medium';
+
+  let heightmap, grid, piece, player, keys, particles, stars, shake, frameCount;
+  let elapsed, fallSpeed, spawnTimer, spawnInterval, running, phase, squishTimer;
+
+  function rowY(n){ return GROUND_Y - (n+1) * CELL; }
+  function rowFromY(y){ return Math.round((GROUND_Y - y) / CELL) - 1; }
+
+  function recomputeHeightmap(){
+    for(let c=0; c<COLS; c++){
+      let top = GROUND_Y;
+      for(const [n, row] of grid){
+        if(row[c]){
+          const y = rowY(n);
+          if(y < top) top = y;
+        }
+      }
+      heightmap[c] = top;
+    }
+  }
+
+  function clearFullRows(){
+    const rowNums = Array.from(grid.keys());
+    const fullRows = rowNums.filter(n => grid.get(n).every(cell => cell !== null));
+    if(fullRows.length === 0) return 0;
+
+    // flash particles across each cleared row before it's removed
+    for(const n of fullRows){
+      const y = rowY(n);
+      for(let c=0; c<COLS; c++){
+        const cell = grid.get(n)[c];
+        spawnLandingDust(c*CELL, y, cell ? cell.color : '#ffffff');
+      }
+    }
+
+    const newGrid = new Map();
+    for(const n of rowNums){
+      if(fullRows.includes(n)) continue;
+      const shiftDown = fullRows.filter(fn => fn < n).length;
+      const row = grid.get(n).slice();
+      // give shifted cells a fresh pop as they drop into place
+      for(let c=0;c<COLS;c++){ if(row[c]) row[c] = {color: row[c].color, texture: row[c].texture, born: frameCount}; }
+      newGrid.set(n - shiftDown, row);
+    }
+    grid = newGrid;
+    recomputeHeightmap();
+    return fullRows.length;
+  }
+
+  function resetGame(){
+    heightmap = new Array(COLS).fill(GROUND_Y);
+    grid = new Map(); // rowNumber -> array[COLS] of {color,born} | null
+    particles = [];
+    stars = [];
+    shake = 0;
+    frameCount = 0;
+    player = {
+      x: W/2 - 12, y: GROUND_Y - 30, w:24, h:30,
+      vx:0, vy:0, speed:3.6, jumpPower:10.08, grounded:true, facing:1,
+      squashT:0, jumping:false, jumpAnimT:999, landAnimT:999
+    };
+    keys = { left:false, right:false, jump:false };
+    piece = null;
+    elapsed = 0;
+    fallSpeed = 1.1;
+    spawnTimer = 0;
+    spawnInterval = 95; // frames
+    running = false;
+    phase = 'playing'; // 'playing' | 'squishing' | 'over' | 'win'
+    squishTimer = 0;
+  }
+  resetGame();
+
+  function spawnPiece(){
+    const key = SHAPE_KEYS[Math.floor(Math.random()*SHAPE_KEYS.length)];
+    const shape = SHAPES[key];
+    const baseCol = Math.floor(Math.random() * (COLS - 3)); // shapes span up to 4 cols wide
+    piece = {
+      key, color: randomPieceColor(shape.hue), texture: randomTexture(),
+      baseCol, // fixed grid column, falls straight down, no homing
+      cells: shape.cells, // local 4x4 offsets
+      y: -4 * CELL // top-left pixel y of the 4x4 box, starts above screen
+    };
+  }
+
+  function pieceCellRects(p){
+    return p.cells.map(([cx,cy]) => {
+      const col = p.baseCol + cx;
+      return { col, x: col * CELL, y: p.y + cy * CELL };
+    });
+  }
+
+  function rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh){
+    return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+  }
+
+  function triggerSquish(color){
+    if(phase !== 'playing') return;
+    phase = 'squishing';
+    squishTimer = 0;
+    shake = 14;
+    player.squashT = SQUISH_DURATION;
+    stopBackgroundMusic();
+    sfxSquish();
+    sfxDefeatJingle();
+    spawnSplatParticles(player.x+player.w/2, player.y+player.h/2, color);
+    for(let i=0;i<6;i++){
+      stars.push({
+        angle: Math.random()*Math.PI*2,
+        dist: 0,
+        speed: 1.2 + Math.random()*0.8,
+        spin: (Math.random()-0.5)*0.3
+      });
+    }
+  }
+
+  const DEFEAT_MESSAGES = [
+    "Well, you're basically a pancake now.",
+    "Tetris: 1. You: extremely flat.",
+    "That block really had it out for you.",
+    "You've been evicted by gravity, effective immediately.",
+    "RIP: here lies a very flat hero.",
+    "Achievement unlocked: Human Crepe.",
+    "The floor called. It wants its shape back.",
+    "You just became someone's high score.",
+    "Block: 1. Ego: 0.",
+    "Somewhere, a Tetris piece is very proud of itself.",
+    "You've been geometrically inconvenienced.",
+    "New record: thinnest human alive."
+  ];
+
+  function finalizeGameOver(reason){
+    running = false;
+    phase = 'over';
+    stopBackgroundMusic();
+    if (elapsed > best) best = elapsed;
+    bestVal.textContent = best.toFixed(1);
+    if(reason === 'buried') sfxBuried();
+    overlayTitle.textContent = reason === 'buried' ? 'BURIED!' : 'SPLATTED!';
+    const msg = DEFEAT_MESSAGES[Math.floor(Math.random()*DEFEAT_MESSAGES.length)];
+    overlayText.innerHTML = `<span style="color:#ffd23f;font-style:italic">${msg}</span><br><br>You survived ${elapsed.toFixed(1)}s<br>Best: ${best.toFixed(1)}s`;
+    startBtn.textContent = 'RETRY';
+    overlay.classList.remove('hidden');
+  }
+
+  function triggerWin(){
+    if(phase !== 'playing') return;
+    running = false;
+    phase = 'win';
+    sfxWin();
+    if (elapsed > best) best = elapsed;
+    bestVal.textContent = best.toFixed(1);
+    overlayTitle.textContent = 'YOU ESCAPED!';
+    overlayTitle.style.color = '#4ee38a';
+    overlayText.innerHTML = `Climbed clear of the pile in <span style="color:#ffd23f">${elapsed.toFixed(1)}s</span><br>Best: ${best.toFixed(1)}s`;
+    startBtn.textContent = 'PLAY AGAIN';
+    overlay.classList.remove('hidden');
+  }
+
+  function spawnSplatParticles(x,y,color){
+    for(let i=0;i<18;i++){
+      particles.push({
+        x, y, color,
+        vx:(Math.random()-0.5)*7,
+        vy:(Math.random()-1.6)*7,
+        life: 34 + Math.random()*14
+      });
+    }
+  }
+
+  function spawnLandingDust(cellX, cellY, color){
+    for(let i=0;i<5;i++){
+      particles.push({
+        x: cellX + CELL/2, y: cellY + CELL,
+        vx: (Math.random()-0.5)*2.4,
+        vy: -Math.random()*1.6 - 0.3,
+        life: 16 + Math.random()*10,
+        color: color || 'rgba(230,225,245,0.8)'
+      });
+    }
+  }
+
+  // ---------- Sound effects (synthesized, no audio files needed) ----------
+  let audioCtx = null;
+  let soundOn = true;
+  function getAudioContext(){
+    if(!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      audioCtx = new AC();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function ensureAudio(){
+    if(!soundOn) return null;
+    return getAudioContext();
+  }
+
+  function playTone({freq=440, freqEnd=null, duration=0.15, type='sine', volume=0.2, delay=0}){
+    const ac = ensureAudio();
+    if(!ac) return;
+    const t0 = ac.currentTime + delay;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if(freqEnd !== null) osc.frequency.exponentialRampToValueAtTime(Math.max(1,freqEnd), t0+duration);
+    gain.gain.setValueAtTime(volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0+duration+0.03);
+  }
+
+  function playNoiseBurst({duration=0.12, volume=0.15, filterFreq=800, delay=0}){
+    const ac = ensureAudio();
+    if(!ac) return;
+    const t0 = ac.currentTime + delay;
+    const bufferSize = Math.max(1, Math.floor(ac.sampleRate * duration));
+    const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * (1 - i/bufferSize); }
+    const noise = ac.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = filterFreq;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+    noise.connect(filter).connect(gain).connect(ac.destination);
+    noise.start(t0);
+  }
+
+  function sfxJump(){ playTone({freq:320, freqEnd:640, duration:0.14, type:'triangle', volume:0.16}); }
+  function sfxLand(){ playTone({freq:160, freqEnd:70, duration:0.08, type:'sine', volume:0.12}); }
+  function sfxBlockLand(){
+    playNoiseBurst({duration:0.09, volume:0.14, filterFreq:650});
+    playTone({freq:95, freqEnd:48, duration:0.1, type:'sine', volume:0.1});
+  }
+  function sfxLineClear(count){
+    const notes = [523, 659, 784, 1047];
+    for(let i=0;i<notes.length;i++){
+      playTone({freq:notes[i], duration:0.14, type:'triangle', volume:0.18, delay:i*0.055});
+    }
+    if(count > 1) playTone({freq:1319, duration:0.2, type:'square', volume:0.14, delay:notes.length*0.055});
+  }
+  function sfxSquish(){
+    playNoiseBurst({duration:0.16, volume:0.18, filterFreq:1200});
+    playTone({freq:420, freqEnd:55, duration:0.35, type:'sawtooth', volume:0.18});
+  }
+  function sfxDefeatJingle(){
+    // classic comedic "sad trombone" - wah, wah, wah, waaaah
+    const notes = [392, 370, 349, 330]; // G4, F#4, F4, E4 descending
+    const durs  = [0.22, 0.22, 0.22, 0.55];
+    let t = 0.32; // let the initial splat impact finish first
+    for(let i=0;i<notes.length;i++){
+      playTone({freq:notes[i], freqEnd:notes[i]*0.94, duration:durs[i], type:'sawtooth', volume:0.15, delay:t});
+      t += durs[i]*0.92;
+    }
+  }
+  function sfxBuried(){
+    playNoiseBurst({duration:0.3, volume:0.22, filterFreq:300});
+    playTone({freq:150, freqEnd:40, duration:0.4, type:'sine', volume:0.18});
+  }
+  function sfxWin(){
+    // triumphant victory jingle: quick ascending run into a held major chord
+    const run = [523, 659, 784, 1047];
+    for(let i=0;i<run.length;i++){
+      playTone({freq:run[i], duration:0.14, type:'square', volume:0.16, delay:i*0.11});
+    }
+    const chordDelay = run.length*0.11 + 0.04;
+    const chord = [1047, 1319, 1568]; // C6, E6, G6 major triad
+    for(const f of chord){
+      playTone({freq:f, duration:0.55, type:'square', volume:0.13, delay:chordDelay});
+    }
+  }
+
+  // ---------- Background music (3 original chiptune songs, Tetris-inspired, ~60s each) ----------
+  const NOTE_SEMITONE = {C:-9,'C#':-8,D:-7,'D#':-6,E:-5,F:-4,'F#':-3,G:-2,'G#':-1,A:0,'A#':1,B:2};
+  const ORDERED_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  function noteFreq(name){
+    if(!name) return null; // rest
+    const m = name.match(/^([A-G]#?)(\d)$/);
+    const semis = NOTE_SEMITONE[m[1]] + (parseInt(m[2],10)-4)*12;
+    return 440 * Math.pow(2, semis/12);
+  }
+  // shifts a [noteName|null, durationInBeats] entry by a number of semitones, used to
+  // build variation sections out of a base motif without hand-writing every note
+  function transposeEntry([name, dur], semis){
+    if(name === null) return [null, dur];
+    const m = name.match(/^([A-G]#?)(\d)$/);
+    const idx = ORDERED_NOTES.indexOf(m[1]) + parseInt(m[2],10)*12 + semis;
+    const oct = Math.floor(idx/12);
+    return [ORDERED_NOTES[((idx%12)+12)%12] + oct, dur];
+  }
+  function transpose(phrase, semis){ return phrase.map(e => transposeEntry(e, semis)); }
+  function assemble(pattern, sections, tail){
+    let out = [];
+    for(const key of pattern) out = out.concat(sections[key]);
+    return out.concat(tail);
+  }
+
+  // each song is built from a couple of 16-beat motifs (plus transposed variations for
+  // contrast) arranged into a ~60-second-long arrangement, so the tempo (BPM) times the
+  // total beats works out to almost exactly 60 seconds before looping back to the top.
+  function buildSongs(){
+    const songs = [];
+
+    // "Firestep" - driving A-minor folk-dance feel, 150 BPM
+    {
+      const mA = [
+        ['E5',1],['D5',0.5],['C5',0.5],['B4',1],['A4',1],['C5',0.5],['E5',0.5],['D5',1],
+        ['C5',1],['B4',0.5],['A4',0.5],['A4',1],['G4',0.5],['A4',0.5],['B4',1],['C5',1],
+        ['E5',1],['D5',0.5],['C5',0.5],['A4',2]
+      ];
+      const mB = transpose(mA, 3);
+      const mC = transpose(mA, -5);
+      const tail = [ ['A4',1],['C5',1],['B4',1],['A4',1],['E4',2] ]; // 6 beats
+      const bA = [ ['A3',4],['F3',4],['G3',4],['A3',4] ];
+      const bB = [ ['C4',4],['A3',4],['A#3',4],['C4',4] ];
+      const bC = [ ['E3',4],['C3',4],['D3',4],['E3',4] ];
+      const bTail = [ ['A2',6] ];
+      const pattern = ['A','B','A','C','A','B','C','A','B']; // 9*16 + 6 = 150 beats
+      songs.push({
+        tempo: 150,
+        melody: assemble(pattern, {A:mA,B:mB,C:mC}, tail),
+        bass: assemble(pattern, {A:bA,B:bB,C:bC}, bTail)
+      });
+    }
+
+    // "Undertow" - syncopated D-minor theme with a held tail, 132 BPM
+    {
+      const mA = [
+        ['A4',0.5],['C5',0.5],['D5',1],['F5',0.5],['E5',0.5],['D5',1],['C5',0.5],['A4',0.5],
+        [null,1],['A4',0.5],['A#4',0.5],['C5',1],['D5',1],['C5',0.5],['A4',0.5],['D5',2],
+        ['F5',1],['E5',0.5],['D5',0.5],['D5',2]
+      ];
+      const mB = transpose(mA, -3);
+      const tail = [ ['D5',1],['C5',1],['A4',1],['D4',1] ]; // 4 beats
+      const bA = [ ['D3',4],['A#2',4],['C3',4],['A2',4] ];
+      const bB = transpose(bA, -3);
+      const bTail = [ ['D2',4] ];
+      const pattern = ['A','A','B','A','A','B','A','B']; // 8*16 + 4 = 132 beats
+      songs.push({
+        tempo: 132,
+        melody: assemble(pattern, {A:mA,B:mB}, tail),
+        bass: assemble(pattern, {A:bA,B:bB}, bTail)
+      });
+    }
+
+    // "Redline" - fast E-minor riff with a pulsing bass, 168 BPM
+    {
+      const mA = [
+        ['E5',0.5],['G5',0.5],['B5',0.5],['A5',0.5],['G5',0.5],['E5',0.5],['D5',0.5],['E5',0.5],
+        ['E5',0.5],['G5',0.5],['B5',0.5],['A5',0.5],['G5',0.5],['E5',0.5],['D5',0.5],['E5',0.5],
+        ['F#5',0.5],['E5',0.5],['D5',0.5],['B4',0.5],['C5',0.5],['B4',0.5],['A4',0.5],['G4',0.5],
+        ['E5',1],['D5',0.5],['C5',0.5],['B4',2]
+      ];
+      const mB = transpose(mA, 2);
+      const mC = transpose(mA, -2);
+      const tail = [ ['E5',1],['G5',1],['B5',1],['E5',1],[null,1],['B4',1],['E5',2] ]; // 8 beats
+      const pulsingBass = (lo, hi, beats) => {
+        const b = [];
+        for(let i=0;i<beats;i++){ b.push([lo,0.5]); b.push([hi,0.5]); }
+        return b;
+      };
+      const bA = pulsingBass('E3','B2',16);
+      const bB = pulsingBass('F#3','C#3',16);
+      const bC = pulsingBass('D3','A2',16);
+      const bTail = pulsingBass('E3','B2',8);
+      const pattern = ['A','A','B','A','C','A','B','A','C','A']; // 10*16 + 8 = 168 beats
+      songs.push({
+        tempo: 168,
+        melody: assemble(pattern, {A:mA,B:mB,C:mC}, tail),
+        bass: assemble(pattern, {A:bA,B:bB,C:bC}, bTail)
+      });
+    }
+
+    return songs;
+  }
+  const SONGS = buildSongs();
+
+  let musicGainNode = null;
+  let musicTimeoutId = null;
+  let currentSong = null;
+
+  function getMusicBus(ac){
+    if(!musicGainNode){
+      musicGainNode = ac.createGain();
+      musicGainNode.gain.value = soundOn ? 0.32 : 0;
+      musicGainNode.connect(ac.destination);
+    }
+    return musicGainNode;
+  }
+
+  function playMusicNote(freq, startTime, dur, type, bus, volume){
+    if(!freq) return; // rest
+    const ac = audioCtx;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+    const atk = 0.008, rel = Math.min(0.08, dur*0.35);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + atk);
+    gain.gain.setValueAtTime(volume, Math.max(startTime+atk, startTime + dur - rel));
+    gain.gain.linearRampToValueAtTime(0, startTime + dur);
+    osc.connect(gain).connect(bus);
+    osc.start(startTime);
+    osc.stop(startTime + dur + 0.02);
+  }
+
+  function scheduleSongLoop(){
+    const ac = getAudioContext();
+    if(!ac || !currentSong){
+      musicTimeoutId = setTimeout(scheduleSongLoop, 250);
+      return;
+    }
+    const bus = getMusicBus(ac);
+    const beatLen = 60 / currentSong.tempo;
+    const startTime = ac.currentTime + 0.05;
+
+    let t = startTime;
+    for(const [note, dur] of currentSong.melody){
+      playMusicNote(noteFreq(note), t, dur*beatLen*0.92, 'square', bus, 0.22);
+      t += dur*beatLen;
+    }
+    const loopLength = t - startTime;
+
+    let tb = startTime;
+    for(const [note, dur] of currentSong.bass){
+      playMusicNote(noteFreq(note), tb, dur*beatLen*0.95, 'triangle', bus, 0.26);
+      tb += dur*beatLen;
+    }
+
+    musicTimeoutId = setTimeout(scheduleSongLoop, loopLength*1000);
+  }
+
+  function startBackgroundMusic(){
+    if(musicTimeoutId){ clearTimeout(musicTimeoutId); musicTimeoutId = null; }
+    currentSong = SONGS[Math.floor(Math.random()*SONGS.length)];
+    scheduleSongLoop();
+  }
+
+  function stopBackgroundMusic(){
+    if(musicTimeoutId){ clearTimeout(musicTimeoutId); musicTimeoutId = null; }
+    currentSong = null;
+  }
+
+  // ---------- Input ----------
+  window.addEventListener('keydown', e=>{
+    if(['ArrowLeft','a','A'].includes(e.key)) keys.left = true;
+    if(['ArrowRight','d','D'].includes(e.key)) keys.right = true;
+    if(['ArrowUp','w','W',' '].includes(e.key)) { keys.jump = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e=>{
+    if(['ArrowLeft','a','A'].includes(e.key)) keys.left = false;
+    if(['ArrowRight','d','D'].includes(e.key)) keys.right = false;
+    if(['ArrowUp','w','W',' '].includes(e.key)) keys.jump = false;
+  });
+
+  function bindTouch(id, onDown, onUp){
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e=>{ e.preventDefault(); onDown(); }, {passive:false});
+    el.addEventListener('touchend', e=>{ e.preventDefault(); onUp(); }, {passive:false});
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('mouseup', onUp);
+    el.addEventListener('mouseleave', onUp);
+  }
+  bindTouch('jumpBtn', ()=>keys.jump=true, ()=>keys.jump=false);
+
+  // Draggable joystick: farther from center = faster movement in that direction
+  const joystick = document.getElementById('joystick');
+  const joystickKnob = document.getElementById('joystickKnob');
+  const JOY_MAX = 26; // px the knob can travel from center
+  let joyActive = false;
+  let joyAxis = 0; // -1 (full left) .. 1 (full right)
+
+  function setKnob(dx){
+    joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), -50%)`;
+  }
+  function updateJoy(clientX){
+    const rect = joystick.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    let dx = clientX - cx;
+    dx = Math.max(-JOY_MAX, Math.min(JOY_MAX, dx));
+    setKnob(dx);
+    joyAxis = dx / JOY_MAX;
+  }
+  function endJoy(){
+    joyActive = false;
+    joyAxis = 0;
+    joystickKnob.style.transition = 'transform 0.15s ease';
+    setKnob(0);
+  }
+  joystick.addEventListener('pointerdown', e=>{
+    joyActive = true;
+    joystickKnob.style.transition = 'none';
+    joystick.setPointerCapture(e.pointerId);
+    updateJoy(e.clientX);
+  });
+  joystick.addEventListener('pointermove', e=>{
+    if(joyActive) updateJoy(e.clientX);
+  });
+  joystick.addEventListener('pointerup', endJoy);
+  joystick.addEventListener('pointercancel', endJoy);
+
+  const diffButtons = document.querySelectorAll('.diffBtn');
+  function setDifficulty(d){
+    difficulty = d;
+    diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === d));
+  }
+  diffButtons.forEach(b => b.addEventListener('click', () => setDifficulty(b.dataset.diff)));
+  setDifficulty('medium');
+
+  startBtn.addEventListener('click', ()=>{
+    ensureAudio();
+    startBackgroundMusic();
+    resetGame();
+    overlayTitle.style.color = '';
+    overlay.classList.add('hidden');
+    running = true;
+  });
+
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.addEventListener('click', ()=>{
+    soundOn = !soundOn;
+    muteBtn.textContent = soundOn ? '🔊' : '🔇';
+    if(soundOn) ensureAudio();
+    if(musicGainNode && audioCtx){
+      musicGainNode.gain.setTargetAtTime(soundOn ? 0.32 : 0, audioCtx.currentTime, 0.02);
+    }
+  });
+
+  // ---------- Physics / update ----------
+  function columnsSpanned(x, w){
+    const c1 = Math.max(0, Math.floor(x / CELL));
+    const c2 = Math.min(COLS-1, Math.floor((x + w - 1) / CELL));
+    const cols = [];
+    for(let c=c1;c<=c2;c++) cols.push(c);
+    return cols;
+  }
+
+  // The nearest solid surface at or below `fromY` (a block's top edge, or the ground).
+  // Ignores any block whose top is above fromY, so overhangs don't get treated as
+  // "floor" for a player who is already standing underneath them.
+  function surfaceBelow(x, w, fromY){
+    const cols = columnsSpanned(x, w);
+    let minY = GROUND_Y;
+    for(const c of cols){
+      for(const [n, row] of grid){
+        if(!row[c]) continue;
+        const cellY = rowY(n);
+        if(cellY >= fromY - 0.01 && cellY < minY) minY = cellY;
+      }
+    }
+    return minY;
+  }
+
+  // Is there an actual solid cell (not just "something somewhere in the column")
+  // overlapping this y-range in any of these columns? Used for horizontal blocking
+  // so the player can walk underneath overhangs instead of being stopped by them.
+  function columnsBlockedInRange(cols, yTop, yBottom){
+    for(const c of cols){
+      for(const [n, row] of grid){
+        if(!row[c]) continue;
+        const cellY = rowY(n);
+        const cellBottom = cellY + CELL;
+        if(cellBottom > yTop + 0.01 && cellY < yBottom - 0.01) return true;
+      }
+    }
+    return false;
+  }
+
+  function update(){
+    if(!running) return;
+
+    if(shake > 0) shake -= 1;
+
+    if(phase === 'squishing'){
+      squishTimer++;
+      // stars spin outward around the squished player for comic effect
+      for(const s of stars){ s.dist += s.speed; s.angle += s.spin; }
+      for(const p of particles){ p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--; }
+      particles = particles.filter(p=>p.life>0);
+      if(squishTimer >= SQUISH_DURATION){
+        finalizeGameOver('squish');
+      }
+      return;
+    }
+
+    elapsed += 1/60;
+    timeVal.textContent = elapsed.toFixed(1);
+    frameCount++;
+
+    const d = DIFFS[difficulty];
+    // difficulty-scaled ramp
+    fallSpeed = Math.min(d.fallCap, d.fallBase + elapsed * d.fallScale);
+    spawnInterval = Math.max(d.spawnMin, d.spawnBase - elapsed * d.spawnScale);
+
+    // --- player horizontal ---
+    // joystick (analog, farther drag = faster) takes priority while active;
+    // otherwise fall back to keyboard (pressing both left+right cancels out)
+    let axis = 0;
+    if(joyActive && Math.abs(joyAxis) > 0.04){
+      axis = joyAxis;
+      player.facing = axis > 0 ? 1 : -1;
+    } else if(keys.left && keys.right){
+      axis = 0;
+    } else if(keys.left){
+      axis = -1; player.facing = -1;
+    } else if(keys.right){
+      axis = 1; player.facing = 1;
+    }
+    player.vx = axis * player.speed;
+    let newX = player.x + player.vx;
+    newX = Math.max(0, Math.min(W - player.w, newX));
+    const newCols = columnsSpanned(newX, player.w);
+    // only block horizontal movement if an actual block overlaps the player's
+    // current height in the target column(s) - an overhang above doesn't count
+    if(!columnsBlockedInRange(newCols, player.y, player.y + player.h)){
+      player.x = newX;
+    }
+
+    // --- player vertical ---
+    const wasGrounded = player.grounded;
+    if(keys.jump && player.grounded){
+      player.vy = -player.jumpPower;
+      player.grounded = false;
+      player.jumping = true;
+      player.jumpAnimT = 0;
+      sfxJump();
+    }
+    player.vy += 0.42; // gravity
+    if(player.vy > 14) player.vy = 14;
+    let newY = player.y + player.vy;
+    const floorAtX = surfaceBelow(player.x, player.w, player.y);
+    if(newY + player.h >= floorAtX){
+      newY = floorAtX - player.h;
+      player.vy = 0;
+      player.grounded = true;
+    } else {
+      player.grounded = false;
+    }
+    player.y = newY;
+    if(player.jumpAnimT < 999) player.jumpAnimT++;
+    if(player.landAnimT < 999) player.landAnimT++;
+    if(!wasGrounded && player.grounded){
+      // just touched down -> squash-bounce landing animation
+      player.jumping = false;
+      player.landAnimT = 0;
+      sfxLand();
+    }
+
+    // --- win check: climbed all the way to the top of the play field ---
+    if(player.y <= WIN_Y){
+      triggerWin();
+      return;
+    }
+
+    // --- falling piece ---
+    if(!piece){
+      spawnTimer++;
+      if(spawnTimer >= spawnInterval){
+        spawnTimer = 0;
+        spawnPiece();
+      }
+    } else {
+      piece.y += fallSpeed; // falls straight down, no homing
+      let rects = pieceCellRects(piece);
+
+      // a falling block pushes the player down instead of instantly squishing them;
+      // jumping into the underside just bonks you back down. Squish only happens
+      // once the player has nowhere left to go (pinned against floor/stack).
+      let pushAmount = 0;
+      let anyOverlap = false;
+      for(const r of rects){
+        if(rectsOverlap(r.x, r.y, CELL, CELL, player.x, player.y, player.w, player.h)){
+          anyOverlap = true;
+          const penetration = (r.y + CELL) - player.y;
+          if(penetration > pushAmount) pushAmount = penetration;
+        }
+      }
+      if(anyOverlap){
+        const pushedY = player.y + pushAmount;
+        const floorY = surfaceBelow(player.x, player.w, player.y);
+        const maxY = floorY - player.h;
+        if(pushedY >= maxY){
+          player.y = maxY;
+          triggerSquish(piece.color);
+          return;
+        } else {
+          player.y = pushedY;
+          player.vy = Math.max(player.vy, 0); // cancel upward motion, like bonking a ceiling
+          player.grounded = false;
+          player.jumping = false;
+        }
+      }
+
+      // landing check
+      let maxOverlap = -Infinity;
+      for(const r of rects){
+        const bottom = r.y + CELL;
+        const overlap = bottom - heightmap[r.col];
+        if(overlap > maxOverlap) maxOverlap = overlap;
+      }
+      if(maxOverlap >= 0){
+        piece.y -= maxOverlap; // snap up so it rests exactly on the grid
+        const finalRects = pieceCellRects(piece);
+        for(const r of finalRects){
+          const n = rowFromY(r.y);
+          if(!grid.has(n)) grid.set(n, new Array(COLS).fill(null));
+          grid.get(n)[r.col] = { color: piece.color, texture: piece.texture, born: frameCount };
+          spawnLandingDust(r.x, r.y);
+        }
+        recomputeHeightmap();
+        const cleared = clearFullRows();
+        if(cleared > 0){ shake = Math.max(shake, 8 + cleared*4); sfxLineClear(cleared); }
+        else { shake = Math.max(shake, 4); sfxBlockLand(); }
+        piece = null;
+        // buried check
+        for(const h of heightmap){
+          if(h <= CELL*1.5){ finalizeGameOver('buried'); return; }
+        }
+      }
+    }
+
+    // particles
+    for(const p of particles){
+      p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--;
+    }
+    particles = particles.filter(p=>p.life>0);
+  }
+
+  // ---------- Render ----------
+  function drawBlockCell(x,y,color,squash,texture){
+    squash = squash === undefined ? 1 : squash;
+    const h = CELL * squash;
+    const yOff = y + (CELL - h); // keep the bottom edge aligned while it compresses
+    ctx.fillStyle = color;
+    ctx.fillRect(x+1, yOff+1, CELL-2, h-2);
+
+    // texture overlay for visual variety between blocks
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x+1, yOff+1, CELL-2, h-2);
+    ctx.clip();
+    if(texture === 'stripes'){
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+      ctx.lineWidth = 3;
+      for(let o=-CELL; o<CELL*2; o+=7){
+        ctx.beginPath();
+        ctx.moveTo(x+o, y+CELL);
+        ctx.lineTo(x+o+CELL, y);
+        ctx.stroke();
+      }
+    } else if(texture === 'dots'){
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      [[0.3,0.3],[0.7,0.3],[0.3,0.7],[0.7,0.7]].forEach(([fx,fy])=>{
+        ctx.beginPath();
+        ctx.arc(x+fx*CELL, y+fy*CELL, 1.8, 0, Math.PI*2);
+        ctx.fill();
+      });
+    } else if(texture === 'grid'){
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x+CELL/2, y); ctx.lineTo(x+CELL/2, y+CELL);
+      ctx.moveTo(x, y+CELL/2); ctx.lineTo(x+CELL, y+CELL/2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x+1, yOff+1, CELL-2, h-2);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(x+2, yOff+2, CELL-4, 4);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    if(shake > 0){
+      ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+    }
+
+    // subtle grid backdrop
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    for(let c=0;c<=COLS;c++){
+      ctx.beginPath(); ctx.moveTo(c*CELL,0); ctx.lineTo(c*CELL,H); ctx.stroke();
+    }
+
+    // ground
+    ctx.fillStyle = '#241f3d';
+    ctx.fillRect(0, GROUND_Y, W, CELL);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(0, GROUND_Y, W, 3);
+
+    // landed blocks (fresh landings squash-bounce briefly)
+    for(const [n, row] of grid){
+      const y = rowY(n);
+      for(let c=0; c<COLS; c++){
+        const cell = row[c];
+        if(!cell) continue;
+        const age = frameCount - cell.born;
+        let squash = 1;
+        if(age < 8){
+          squash = 0.7 + (age/8) * 0.3; // compressed on impact, eases back to full height
+        } else if(age < 14){
+          squash = 1 + Math.sin((age-8)/6 * Math.PI) * 0.06; // tiny overshoot wobble
+        }
+        drawBlockCell(c*CELL, y, cell.color, squash, cell.texture);
+      }
+    }
+
+    // falling piece
+    if(piece){
+      const rects = pieceCellRects(piece);
+      for(const r of rects) drawBlockCell(r.x, r.y, piece.color, 1, piece.texture);
+    }
+
+    if(phase === 'squishing'){
+      drawSquishedPlayer();
+    } else {
+      // player (character with jump stretch / landing squash)
+      let stretch = 1;
+      if(player.jumping){
+        // stretch tall & thin while rising, ease off near the top of the arc
+        const speedFactor = Math.min(1, Math.abs(player.vy) / player.jumpPower);
+        stretch = 1 + speedFactor * 0.22;
+      } else if(player.landAnimT < 8){
+        // brief squash on touchdown
+        stretch = 1 - (1 - player.landAnimT/8) * 0.28;
+      }
+      const ph = player.h * stretch;
+      const pw = player.w * (1 + (1-stretch)*0.6); // volume-preserving-ish width compensation
+      const px = player.x + player.w/2 - pw/2;
+      const py = player.y + player.h - ph;
+
+      ctx.fillStyle = '#ff3d68';
+      roundRect(px, py, pw, ph, 6);
+      ctx.fill();
+      // eyes
+      ctx.fillStyle = '#12101c';
+      const eyeOffset = player.facing > 0 ? 4 : -4;
+      ctx.beginPath();
+      ctx.arc(px+pw/2+eyeOffset-2, py+ph*0.4, 2.4, 0, Math.PI*2);
+      ctx.arc(px+pw/2+eyeOffset+5, py+ph*0.4, 2.4, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // particles
+    for(const p of particles){
+      ctx.globalAlpha = Math.max(0, p.life/40);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 4, 4);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  function drawSquishedPlayer(){
+    const t = Math.min(1, squishTimer / 10); // flatten over the first ~10 frames
+    const wobble = squishTimer > 10 ? Math.sin(squishTimer * 0.5) * 2 : 0;
+    const pw = player.w + (player.w*1.9) * t;
+    const ph = Math.max(5, player.h * (1 - t*0.85)) + Math.abs(wobble)*0.3;
+    const px = player.x + player.w/2 - pw/2;
+    const py = player.y + player.h - ph;
+
+    // squashed body
+    ctx.fillStyle = '#ff3d68';
+    roundRect(px, py, pw, ph, 5);
+    ctx.fill();
+
+    // X_X eyes once flattened
+    ctx.strokeStyle = '#12101c';
+    ctx.lineWidth = 2;
+    const eyeY = py + ph*0.45;
+    [-1,1].forEach(dir=>{
+      const ex = px + pw/2 + dir*pw*0.18;
+      ctx.beginPath();
+      ctx.moveTo(ex-3, eyeY-3); ctx.lineTo(ex+3, eyeY+3);
+      ctx.moveTo(ex+3, eyeY-3); ctx.lineTo(ex-3, eyeY+3);
+      ctx.stroke();
+    });
+
+    // spinning comic stars
+    ctx.fillStyle = '#ffd23f';
+    for(const s of stars){
+      const sx = player.x + player.w/2 + Math.cos(s.angle) * (10 + s.dist);
+      const sy = py - 6 + Math.sin(s.angle) * (6 + s.dist*0.5);
+      drawStar(sx, sy, 5, s.angle);
+    }
+
+    // bouncy "SPLAT!" callout
+    if(squishTimer > 6){
+      const pop = Math.min(1, (squishTimer-6)/8);
+      const bounce = Math.sin(Math.min(1,(squishTimer-6)/20) * Math.PI) * 6;
+      ctx.save();
+      ctx.translate(player.x + player.w/2, py - 22 - bounce);
+      ctx.rotate(Math.sin(squishTimer*0.15) * 0.12);
+      ctx.scale(pop, pop);
+      ctx.font = "16px 'Press Start 2P', monospace";
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd23f';
+      ctx.strokeStyle = '#12101c';
+      ctx.lineWidth = 3;
+      ctx.strokeText('SPLAT!', 0, 0);
+      ctx.fillText('SPLAT!', 0, 0);
+      ctx.restore();
+    }
+  }
+
+  function drawStar(cx, cy, r, rot){
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const a = (i * 2 * Math.PI/5) - Math.PI/2;
+      const a2 = a + Math.PI/5;
+      ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+      ctx.lineTo(Math.cos(a2)*(r*0.45), Math.sin(a2)*(r*0.45));
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
