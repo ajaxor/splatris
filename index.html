@@ -30,6 +30,41 @@
 
       <button id="start" type="button">Start game</button>
       <p id="status" class="status">Press start, then tap blobs to score.</p>
+
+      <section class="multiplayer" aria-labelledby="multiplayer-title">
+        <div>
+          <p class="eyebrow">Peer-to-peer demo</p>
+          <h2 id="multiplayer-title">Local multiplayer buttons</h2>
+          <p class="intro">Host a room, let up to 3 more phones scan a player QR code, then paste their answer back on the host. Each player button syncs over WebRTC data channels.</p>
+        </div>
+
+        <div class="connection-panel">
+          <button id="host-room" type="button">Host room</button>
+          <p id="multiplayer-status" class="status">Host this page on your LAN, then tap Host room.</p>
+        </div>
+
+        <div id="host-tools" class="host-tools hidden">
+          <div class="host-header">
+            <strong>Host join links</strong>
+            <span id="room-url"></span>
+          </div>
+          <div id="qr-list" class="qr-list"></div>
+        </div>
+
+        <div id="guest-tools" class="guest-tools hidden">
+          <p class="status">Send this answer back to the host, then keep this page open.</p>
+          <textarea id="guest-answer" readonly aria-label="Guest WebRTC answer"></textarea>
+          <button id="copy-answer" type="button">Copy answer</button>
+        </div>
+
+        <div id="answer-panel" class="answer-panel hidden">
+          <label for="answer-input">Paste guest answer on host</label>
+          <textarea id="answer-input" placeholder="Paste a guest answer here"></textarea>
+          <button id="apply-answer" type="button">Connect guest</button>
+        </div>
+
+        <div id="player-buttons" class="player-grid" aria-live="polite"></div>
+      </section>
     </main>
 
     <script src="app.js"></script>

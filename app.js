@@ -142,3 +142,212 @@ canvas.addEventListener("touchstart", (event) => {
 }, { passive: false });
 
 drawBackground();
+
+const hostRoomButton = document.querySelector("#host-room");
+const multiplayerStatus = document.querySelector("#multiplayer-status");
+const hostTools = document.querySelector("#host-tools");
+const guestTools = document.querySelector("#guest-tools");
+const answerPanel = document.querySelector("#answer-panel");
+const qrList = document.querySelector("#qr-list");
+const roomUrl = document.querySelector("#room-url");
+const guestAnswer = document.querySelector("#guest-answer");
+const copyAnswerButton = document.querySelector("#copy-answer");
+const answerInput = document.querySelector("#answer-input");
+const applyAnswerButton = document.querySelector("#apply-answer");
+const playerButtons = document.querySelector("#player-buttons");
+
+const maxPlayers = 4;
+const peerConnections = new Map();
+const channels = new Map();
+const playerState = Array.from({ length: maxPlayers }, (_, index) => ({
+  name: `Player ${index + 1}`,
+  pressed: false,
+  connected: index === 0,
+}));
+let localPlayerIndex = 0;
+let isHost = false;
+
+function encodeSignal(data) {
+  return btoa(JSON.stringify(data)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function decodeSignal(value) {
+  const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  return JSON.parse(atob(padded));
+}
+
+function setMultiplayerStatus(message) {
+  multiplayerStatus.textContent = message;
+}
+
+function sendToChannel(channel, message) {
+  if (channel.readyState === "open") {
+    channel.send(JSON.stringify(message));
+  }
+}
+
+function broadcast(message, exceptPlayer) {
+  channels.forEach((channel, playerIndex) => {
+    if (playerIndex !== exceptPlayer) {
+      sendToChannel(channel, message);
+    }
+  });
+}
+
+function renderPlayerButtons() {
+  playerButtons.innerHTML = "";
+  playerState.forEach((player, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `player-toggle${player.pressed ? " is-on" : ""}`;
+    button.disabled = index !== localPlayerIndex;
+    button.innerHTML = `<span>${player.name}</span><small>${player.connected ? "connected" : "waiting"} · ${player.pressed ? "on" : "off"}</small>`;
+    button.addEventListener("click", () => {
+      player.pressed = !player.pressed;
+      renderPlayerButtons();
+      broadcast({ type: "state", playerIndex: index, pressed: player.pressed });
+    });
+    playerButtons.append(button);
+  });
+}
+
+function applyRemoteState(message, sourcePlayer) {
+  if (message.type === "hello") {
+    playerState[message.playerIndex].connected = true;
+    sendToChannel(channels.get(message.playerIndex), { type: "snapshot", players: playerState });
+    broadcast({ type: "connected", playerIndex: message.playerIndex }, message.playerIndex);
+  }
+
+  if (message.type === "snapshot") {
+    message.players.forEach((player, index) => Object.assign(playerState[index], player));
+  }
+
+  if (message.type === "connected") {
+    playerState[message.playerIndex].connected = true;
+  }
+
+  if (message.type === "state") {
+    playerState[message.playerIndex].pressed = message.pressed;
+    if (isHost) {
+      broadcast(message, sourcePlayer);
+    }
+  }
+
+  renderPlayerButtons();
+}
+
+function wireChannel(playerIndex, channel) {
+  channels.set(playerIndex, channel);
+  channel.addEventListener("open", () => {
+    playerState[playerIndex].connected = true;
+    if (isHost) {
+      sendToChannel(channel, { type: "snapshot", players: playerState });
+      broadcast({ type: "connected", playerIndex }, playerIndex);
+    } else {
+      sendToChannel(channel, { type: "hello", playerIndex });
+    }
+    setMultiplayerStatus(`${playerState[playerIndex].name} connected.`);
+    renderPlayerButtons();
+  });
+  channel.addEventListener("message", (event) => applyRemoteState(JSON.parse(event.data), playerIndex));
+  channel.addEventListener("close", () => {
+    playerState[playerIndex].connected = playerIndex === localPlayerIndex;
+    renderPlayerButtons();
+  });
+}
+
+function waitForIce(peerConnection) {
+  if (peerConnection.iceGatheringState === "complete") {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    peerConnection.addEventListener("icegatheringstatechange", () => {
+      if (peerConnection.iceGatheringState === "complete") {
+        resolve();
+      }
+    });
+  });
+}
+
+async function makeOffer(playerIndex) {
+  const peerConnection = new RTCPeerConnection({ iceServers: [] });
+  const channel = peerConnection.createDataChannel("splatris-buttons");
+  peerConnections.set(playerIndex, peerConnection);
+  wireChannel(playerIndex, channel);
+  await peerConnection.setLocalDescription(await peerConnection.createOffer());
+  await waitForIce(peerConnection);
+  return encodeSignal({ playerIndex, offer: peerConnection.localDescription });
+}
+
+async function startHost() {
+  isHost = true;
+  localPlayerIndex = 0;
+  hostRoomButton.disabled = true;
+  hostTools.classList.remove("hidden");
+  answerPanel.classList.remove("hidden");
+  roomUrl.textContent = location.href.split("#")[0];
+  setMultiplayerStatus("Creating player QR codes...");
+  qrList.innerHTML = "";
+
+  for (let playerIndex = 1; playerIndex < maxPlayers; playerIndex += 1) {
+    const signal = await makeOffer(playerIndex);
+    const joinUrl = `${location.href.split("#")[0]}#join=${signal}`;
+    const card = document.createElement("article");
+    card.className = "qr-card";
+    card.innerHTML = `<img alt="QR code for Player ${playerIndex + 1}" src="https://api.qrserver.com/v1/create-qr-code/?size=224x224&data=${encodeURIComponent(joinUrl)}"><div><strong>Player ${playerIndex + 1}</strong><span>${joinUrl}</span></div>`;
+    qrList.append(card);
+  }
+
+  setMultiplayerStatus("Ready. Have each phone scan a different player QR, then paste its answer below.");
+  renderPlayerButtons();
+}
+
+async function connectGuest(signal) {
+  const { playerIndex, offer } = decodeSignal(signal);
+  localPlayerIndex = playerIndex;
+  playerState[playerIndex].connected = true;
+  const peerConnection = new RTCPeerConnection({ iceServers: [] });
+  peerConnections.set(0, peerConnection);
+  peerConnection.addEventListener("datachannel", (event) => wireChannel(0, event.channel));
+  await peerConnection.setRemoteDescription(offer);
+  await peerConnection.setLocalDescription(await peerConnection.createAnswer());
+  await waitForIce(peerConnection);
+  guestTools.classList.remove("hidden");
+  guestAnswer.value = encodeSignal({ playerIndex, answer: peerConnection.localDescription });
+  setMultiplayerStatus(`You are Player ${playerIndex + 1}. Copy this answer to the host.`);
+  renderPlayerButtons();
+}
+
+async function applyGuestAnswer() {
+  const { playerIndex, answer } = decodeSignal(answerInput.value.trim());
+  const peerConnection = peerConnections.get(playerIndex);
+  if (!peerConnection) {
+    setMultiplayerStatus("That answer does not match an open player slot.");
+    return;
+  }
+  await peerConnection.setRemoteDescription(answer);
+  answerInput.value = "";
+  setMultiplayerStatus(`Applied Player ${playerIndex + 1}'s answer. Waiting for the data channel to open...`);
+}
+
+hostRoomButton.addEventListener("click", () => {
+  startHost().catch((error) => setMultiplayerStatus(error.message));
+});
+
+applyAnswerButton.addEventListener("click", () => {
+  applyGuestAnswer().catch((error) => setMultiplayerStatus(error.message));
+});
+
+copyAnswerButton.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(guestAnswer.value);
+  setMultiplayerStatus("Answer copied. Paste it into the host phone or computer.");
+});
+
+const joinSignal = new URLSearchParams(location.hash.slice(1)).get("join");
+if (joinSignal) {
+  hostRoomButton.classList.add("hidden");
+  connectGuest(joinSignal).catch((error) => setMultiplayerStatus(error.message));
+}
+
+renderPlayerButtons();
