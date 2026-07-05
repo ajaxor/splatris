@@ -1,0 +1,8 @@
+{
+  "name": "splatris",
+  "private": true,
+  "scripts": {
+    "release": "node scripts/release.mjs",
+    "release:check": "node scripts/release.mjs --check"
+  }
+}
