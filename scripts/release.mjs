@@ -88,12 +88,12 @@ function updateIndex(indexHtml, version, commit) {
   );
 
   updated = updated.replace(
-    /(["'](?:app|hotfix|shell)\.js\?v=)[^"']+/g,
+    /(["'](?:app|hotfix|game-role-patch|shell)\.js\?v=)[^"']+/g,
     (_match, prefix) => `${prefix}${version}`,
   );
 
   updated = updated.replace(
-    /Version\s+\d+\.\d+\.\d+\s+·\s+commit\s+[0-9a-f]+/i,
+    /Version\s+\d+\.\d+\.\d+(?:\s+·\s+commit\s+[0-9a-f]+)?/gi,
     `Version ${version} · commit ${commit}`,
   );
 
@@ -106,6 +106,7 @@ function verifyIndex(indexHtml, version) {
     `shell.css?v=${version}`,
     `app.js?v=${version}`,
     `hotfix.js?v=${version}`,
+    `game-role-patch.js?v=${version}`,
     `shell.js?v=${version}`,
   ];
 
