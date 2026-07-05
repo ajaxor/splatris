@@ -4,77 +4,53 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#14182f" />
-    <title>Splatris</title>
+    <title>WebRTC Multiplayer Test</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="game-shell" aria-label="Splatris demo game">
-      <section class="hero">
-        <p class="eyebrow">Mobile browser game starter</p>
-        <h1>Splatris</h1>
-        <p class="intro">Tap the falling blobs before they hit the floor. This tiny starter app is ready for GitHub Pages.</p>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Peer-to-peer connection test</p>
+        <h1>Multiplayer Test</h1>
+        <p class="intro">Connect up to four phones using QR codes, then test synchronized player buttons.</p>
+      </header>
+
+      <section class="connection-panel">
+        <button id="host-room" type="button">Host room</button>
+        <p id="multiplayer-status" class="status" aria-live="polite">Tap Host room on one phone.</p>
       </section>
 
-      <section class="hud" aria-live="polite">
-        <div>
-          <span class="label">Score</span>
-          <strong id="score">0</strong>
-        </div>
-        <div>
-          <span class="label">Lives</span>
-          <strong id="lives">3</strong>
+      <section id="host-tools" class="panel hidden">
+        <h2>Join this room</h2>
+        <p class="help">Each joining phone scans a different player QR code.</p>
+        <div id="qr-list" class="qr-list"></div>
+      </section>
+
+      <section id="guest-tools" class="panel hidden">
+        <h2>Show this QR to the host</h2>
+        <p class="help">Keep this screen open while the host scans it.</p>
+        <div id="guest-answer-qr" class="answer-qr" aria-label="Guest answer QR code"></div>
+      </section>
+
+      <section id="answer-panel" class="panel hidden">
+        <h2>Connect a player</h2>
+        <p class="help">Open the camera below and point it at the joining player’s answer QR.</p>
+        <button id="scan-answer" type="button">Open camera to scan player QR</button>
+        <div id="scanner" class="scanner hidden">
+          <video id="scanner-video" playsinline muted></video>
+          <canvas id="scanner-canvas" class="hidden"></canvas>
+          <div class="scan-frame" aria-hidden="true"></div>
+          <button id="stop-scan" class="secondary" type="button">Close camera</button>
         </div>
       </section>
 
-      <canvas id="game" width="360" height="520" aria-label="Game canvas"></canvas>
-
-      <button id="start" type="button">Start game</button>
-      <p id="status" class="status">Press start, then tap blobs to score.</p>
-
-      <section class="multiplayer" aria-labelledby="multiplayer-title">
-        <div>
-          <p class="eyebrow">Peer-to-peer demo</p>
-          <h2 id="multiplayer-title">Local multiplayer buttons</h2>
-          <p class="intro">Host a room, let up to 3 more phones scan a player QR code, then scan each player answer QR on the host. Each player button syncs over WebRTC data channels.</p>
-        </div>
-
-        <div class="connection-panel">
-          <button id="host-room" type="button">Host room</button>
-          <p id="multiplayer-status" class="status">Open this GitHub Pages URL on the host phone, then tap Host room.</p>
-        </div>
-
-        <div id="host-tools" class="host-tools hidden">
-          <div class="host-header">
-            <strong>Host join links</strong>
-            <span id="room-url"></span>
-          </div>
-          <div id="qr-list" class="qr-list"></div>
-        </div>
-
-        <div id="guest-tools" class="guest-tools hidden">
-          <p class="status">Show this answer QR to the host phone, then keep this page open.</p>
-          <div id="guest-answer-qr" class="answer-qr" aria-label="Guest answer QR code"></div>
-          <textarea id="guest-answer" readonly aria-label="Guest WebRTC answer"></textarea>
-          <button id="copy-answer" type="button">Copy answer</button>
-        </div>
-
-        <div id="answer-panel" class="answer-panel hidden">
-          <label for="answer-input">Paste guest answer on host</label>
-          <textarea id="answer-input" placeholder="Paste a guest answer here, or scan the guest answer QR"></textarea>
-          <div class="answer-actions">
-            <button id="scan-answer" type="button">Scan answer QR</button>
-            <button id="apply-answer" type="button">Connect guest</button>
-          </div>
-          <div id="scanner" class="scanner hidden">
-            <video id="scanner-video" playsinline muted></video>
-            <button id="stop-scan" type="button">Stop scanning</button>
-          </div>
-        </div>
-
+      <section class="panel">
+        <h2>Connection test</h2>
         <div id="player-buttons" class="player-grid" aria-live="polite"></div>
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
