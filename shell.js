@@ -29,6 +29,7 @@
       const style = document.createElement('style');
       style.textContent = styleText
         .replace(/html\s*,\s*body/g, ':host')
+        .replace(/:root/g, ':host')
         .concat('\n:host { min-height:100svh; display:flex; align-items:center; justify-content:center; }');
       root.append(style, ...parsed.body.childNodes);
 
