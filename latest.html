@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12101c" />
+    <title>Splatris 0.1.8</title>
+    <link rel="stylesheet" href="styles.css?v=0.1.8-latest" />
+    <link rel="stylesheet" href="shell.css?v=0.1.8-latest" />
+  </head>
+  <body>
+    <section class="app-screen" data-screen="menu">
+      <main class="menu-card">
+        <h1>SPLATRIS</h1>
+        <p class="build-version">Version 0.1.8 · commit dbcb7</p>
+        <p class="menu-tagline">run. jump. don’t get squished.</p>
+        <nav class="menu-actions" aria-label="Game modes">
+          <button type="button" data-open-screen="single-player">Single Player</button>
+        </nav>
+      </main>
+    </section>
+
+    <section class="app-screen" data-screen="single-player" hidden>
+      <main class="menu-card">
+        <h1>SINGLE PLAYER</h1>
+        <p class="menu-tagline">Choose which side you control.</p>
+        <nav class="menu-actions" aria-label="Single-player roles">
+          <button type="button" data-game-role="platformer" data-open-screen="game">Play as Platformer</button>
+          <button type="button" data-game-role="tetris" data-open-screen="game">Play as Tetris Pieces</button>
+          <button class="secondary" type="button" data-open-screen="menu">← Back</button>
+        </nav>
+      </main>
+    </section>
+
+    <section class="app-screen" data-screen="game" hidden>
+      <button class="app-back game-back" type="button" data-open-screen="single-player">← Roles</button>
+      <div id="game-component" aria-live="polite"></div>
+    </section>
+
+    <script src="game-role-patch.js?v=0.1.8-latest"></script>
+    <script src="shell.js?v=0.1.8-latest"></script>
+  </body>
+</html>
