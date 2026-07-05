@@ -50,7 +50,7 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
   if(CONTROL_ROLE === 'tetris'){
     jumpBtn.classList.add('role-hidden');
     tetrisActions.classList.remove('role-hidden');
-    controlHint.textContent = 'joystick / ← → moves piece · rotate button / space rotates · ↓ starts the next piece';
+    controlHint.textContent = 'joystick / ← → moves active piece · rotate button / space rotates · ↓ hands off to a new piece';
   }
 `,
 'role initialization');
@@ -59,7 +59,7 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
 `  let elapsed, fallSpeed, spawnTimer, spawnInterval, running, phase, squishTimer;
 `,
 `  let elapsed, fallSpeed, spawnTimer, spawnInterval, running, phase, squishTimer;
-  let pieceMoveCooldown, rotateQueued, newPieceQueued, aiDecisionTimer, aiAxis, aiJumpQueued;
+  let pieceMoveCooldown, rotateQueued, newPieceQueued, aiDecisionTimer, aiAxis, aiJumpQueued, inactivePieces;
 `,
 'role state');
 
@@ -69,6 +69,7 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
 `,
 `    keys = { left:false, right:false, jump:false };
     piece = null;
+    inactivePieces = [];
     pieceMoveCooldown = 0;
     rotateQueued = false;
     newPieceQueued = false;
@@ -122,6 +123,14 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
     }
   }
 
+  function handOffToNewPiece(){
+    if(piece) inactivePieces.push(piece);
+    piece = null;
+    spawnTimer = 0;
+    spawnPiece();
+    pieceMoveCooldown = 0;
+  }
+
   function updateTetrisControls(){
     if(pieceMoveCooldown > 0) pieceMoveCooldown--;
     let direction = 0;
@@ -133,9 +142,71 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
     }
     if(rotateQueued){ rotatePiece(); rotateQueued = false; }
     if(newPieceQueued){
-      if(!piece){ spawnTimer = 0; spawnPiece(); }
+      handOffToNewPiece();
       newPieceQueued = false;
     }
+  }
+
+  function settleInactivePiece(p){
+    const finalRects = pieceCellRects(p);
+    for(const r of finalRects){
+      const n = rowFromY(r.y);
+      if(!grid.has(n)) grid.set(n, new Array(COLS).fill(null));
+      grid.get(n)[r.col] = { color:p.color, texture:p.texture, born:frameCount };
+      spawnLandingDust(r.x, r.y);
+    }
+    recomputeHeightmap();
+    const cleared = clearFullRows();
+    if(cleared > 0){ shake = Math.max(shake, 8 + cleared*4); sfxLineClear(cleared); }
+    else { shake = Math.max(shake, 4); sfxBlockLand(); }
+    for(const h of heightmap){
+      if(h <= CELL*1.5){ finalizeGameOver('buried'); return true; }
+    }
+    return false;
+  }
+
+  function updateInactivePieces(){
+    for(let i=inactivePieces.length-1; i>=0; i--){
+      const p = inactivePieces[i];
+      p.y += fallSpeed;
+      const rects = pieceCellRects(p);
+
+      let pushAmount = 0;
+      let anyOverlap = false;
+      for(const r of rects){
+        if(rectsOverlap(r.x, r.y, CELL, CELL, player.x, player.y, player.w, player.h)){
+          anyOverlap = true;
+          const penetration = (r.y + CELL) - player.y;
+          if(penetration > pushAmount) pushAmount = penetration;
+        }
+      }
+      if(anyOverlap){
+        const pushedY = player.y + pushAmount;
+        const floorY = surfaceBelow(player.x, player.w, player.y);
+        const maxY = floorY - player.h;
+        if(pushedY >= maxY){
+          player.y = maxY;
+          triggerSquish(p.color);
+          return true;
+        }
+        player.y = pushedY;
+        player.vy = Math.max(player.vy, 0);
+        player.grounded = false;
+        player.jumping = false;
+      }
+
+      let maxOverlap = -Infinity;
+      for(const r of rects){
+        const overlap = (r.y + CELL) - heightmap[r.col];
+        if(overlap > maxOverlap) maxOverlap = overlap;
+      }
+      if(maxOverlap >= 0){
+        p.y -= maxOverlap;
+        inactivePieces.splice(i, 1);
+        if(settleInactivePiece(p)) return true;
+      }
+    }
+    return false;
   }
 
   function updateAiIntent(){
@@ -246,7 +317,10 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
     } else {
 `,
 `    // --- falling piece ---
-    if(CONTROL_ROLE === 'tetris') updateTetrisControls();
+    if(CONTROL_ROLE === 'tetris'){
+      updateTetrisControls();
+      if(updateInactivePieces()) return;
+    }
     if(!piece){
       if(CONTROL_ROLE === 'platformer'){
         spawnTimer++;
@@ -254,10 +328,41 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
           spawnTimer = 0;
           spawnPiece();
         }
+      } else {
+        spawnPiece();
       }
     } else {
 `,
 'piece spawning role');
+
+  replaceOnce(
+`        piece = null;
+        // buried check
+`,
+`        piece = null;
+        if(CONTROL_ROLE === 'tetris') spawnPiece();
+        // buried check
+`,
+'automatic next piece');
+
+  replaceOnce(
+`    // falling piece
+    if(piece){
+      const rects = pieceCellRects(piece);
+      for(const r of rects) drawBlockCell(r.x, r.y, piece.color, 1, piece.texture);
+    }
+`,
+`    // falling pieces; only \`piece\` is player-controlled
+    for(const falling of inactivePieces){
+      const rects = pieceCellRects(falling);
+      for(const r of rects) drawBlockCell(r.x, r.y, falling.color, 1, falling.texture);
+    }
+    if(piece){
+      const rects = pieceCellRects(piece);
+      for(const r of rects) drawBlockCell(r.x, r.y, piece.color, 1, piece.texture);
+    }
+`,
+'multiple piece rendering');
 
   replaceOnce(
 `    overlayTitle.style.color = '';
@@ -276,7 +381,7 @@ window.patchSplatrisSource = function patchSplatrisSource(source, selectedRole) 
 `,
 `  setDifficulty('medium');
   if(CONTROL_ROLE === 'tetris'){
-    overlayText.innerHTML = 'Control each falling Tetris piece while the runner is handled by AI.<br>Move left/right, rotate, and press the down arrow button to start the next piece.<br>Pieces always fall at their normal speed.';
+    overlayText.innerHTML = 'Control the active Tetris piece while the runner is handled by AI.<br>A new piece starts automatically when the active piece lands.<br>Press ↓ at any time to release the current piece and take control of a new one.';
   }
 `,
 'role instructions');
