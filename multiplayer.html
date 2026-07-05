@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#14182f" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Multiplayer Test · v0.1.1 · 2587a</title>
+    <link rel="stylesheet" href="styles.css?v=0.1.1" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Peer-to-peer connection test</p>
+        <h1>Multiplayer Test</h1>
+        <p class="build-version">Version 0.1.1 · commit 2587a</p>
+        <p class="intro">Connect up to four phones using QR codes, then test synchronized player buttons.</p>
+        <p><a href="index.html" style="color:inherit">← Back to Splatris</a></p>
+      </header>
+
+      <section class="connection-panel">
+        <button id="host-room" type="button">Host room</button>
+        <p id="multiplayer-status" class="status" aria-live="polite">Tap Host room on one phone.</p>
+      </section>
+
+      <section id="host-tools" class="panel hidden">
+        <h2>Join this room</h2>
+        <p class="help">Each joining phone scans a different player QR code.</p>
+        <div id="qr-list" class="qr-list"></div>
+      </section>
+
+      <section id="guest-tools" class="panel hidden">
+        <h2>Show this QR to the host</h2>
+        <p class="help">Keep this screen open while the host scans it.</p>
+        <div id="guest-answer-qr" class="answer-qr" aria-label="Guest answer QR code"></div>
+      </section>
+
+      <section id="answer-panel" class="panel hidden">
+        <h2>Connect a player</h2>
+        <p class="help">Open the camera below and point it at the joining player’s answer QR.</p>
+        <button id="scan-answer" type="button">Open camera to scan player QR</button>
+        <div id="scanner" class="scanner hidden">
+          <video id="scanner-video" playsinline muted></video>
+          <canvas id="scanner-canvas" class="hidden"></canvas>
+          <div class="scan-frame" aria-hidden="true"></div>
+          <button id="stop-scan" class="secondary" type="button">Close camera</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Connection test</h2>
+        <div id="player-buttons" class="player-grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="app.js?v=0.1.1"></script>
+    <script src="hotfix.js?v=0.1.1"></script>
+  </body>
+</html>
