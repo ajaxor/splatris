@@ -150,7 +150,12 @@ const guestTools = document.querySelector("#guest-tools");
 const answerPanel = document.querySelector("#answer-panel");
 const qrList = document.querySelector("#qr-list");
 const roomUrl = document.querySelector("#room-url");
+const guestAnswerQr = document.querySelector("#guest-answer-qr");
 const guestAnswer = document.querySelector("#guest-answer");
+const scanAnswerButton = document.querySelector("#scan-answer");
+const scanner = document.querySelector("#scanner");
+const scannerVideo = document.querySelector("#scanner-video");
+const stopScanButton = document.querySelector("#stop-scan");
 const copyAnswerButton = document.querySelector("#copy-answer");
 const answerInput = document.querySelector("#answer-input");
 const applyAnswerButton = document.querySelector("#apply-answer");
@@ -166,14 +171,27 @@ const playerState = Array.from({ length: maxPlayers }, (_, index) => ({
 }));
 let localPlayerIndex = 0;
 let isHost = false;
+let scannerStream;
+let scannerFrame;
+
+const rtcConfiguration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }],
+};
 
 function encodeSignal(data) {
-  return btoa(JSON.stringify(data)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
 function decodeSignal(value) {
   const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  return JSON.parse(atob(padded));
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 function setMultiplayerStatus(message) {
@@ -271,7 +289,7 @@ function waitForIce(peerConnection) {
 }
 
 async function makeOffer(playerIndex) {
-  const peerConnection = new RTCPeerConnection({ iceServers: [] });
+  const peerConnection = new RTCPeerConnection(rtcConfiguration);
   const channel = peerConnection.createDataChannel("splatris-buttons");
   peerConnections.set(playerIndex, peerConnection);
   wireChannel(playerIndex, channel);
@@ -299,7 +317,7 @@ async function startHost() {
     qrList.append(card);
   }
 
-  setMultiplayerStatus("Ready. Have each phone scan a different player QR, then paste its answer below.");
+  setMultiplayerStatus("Ready. Have each phone scan a different player QR, then scan its answer QR below.");
   renderPlayerButtons();
 }
 
@@ -307,7 +325,7 @@ async function connectGuest(signal) {
   const { playerIndex, offer } = decodeSignal(signal);
   localPlayerIndex = playerIndex;
   playerState[playerIndex].connected = true;
-  const peerConnection = new RTCPeerConnection({ iceServers: [] });
+  const peerConnection = new RTCPeerConnection(rtcConfiguration);
   peerConnections.set(0, peerConnection);
   peerConnection.addEventListener("datachannel", (event) => wireChannel(0, event.channel));
   await peerConnection.setRemoteDescription(offer);
@@ -315,12 +333,13 @@ async function connectGuest(signal) {
   await waitForIce(peerConnection);
   guestTools.classList.remove("hidden");
   guestAnswer.value = encodeSignal({ playerIndex, answer: peerConnection.localDescription });
-  setMultiplayerStatus(`You are Player ${playerIndex + 1}. Copy this answer to the host.`);
+  guestAnswerQr.innerHTML = `<img alt="Answer QR code for Player ${playerIndex + 1}" src="https://api.qrserver.com/v1/create-qr-code/?size=224x224&data=${encodeURIComponent(guestAnswer.value)}">`;
+  setMultiplayerStatus(`You are Player ${playerIndex + 1}. Show this answer QR to the host.`);
   renderPlayerButtons();
 }
 
-async function applyGuestAnswer() {
-  const { playerIndex, answer } = decodeSignal(answerInput.value.trim());
+async function applyGuestAnswer(signal = answerInput.value.trim()) {
+  const { playerIndex, answer } = decodeSignal(signal);
   const peerConnection = peerConnections.get(playerIndex);
   if (!peerConnection) {
     setMultiplayerStatus("That answer does not match an open player slot.");
@@ -331,6 +350,46 @@ async function applyGuestAnswer() {
   setMultiplayerStatus(`Applied Player ${playerIndex + 1}'s answer. Waiting for the data channel to open...`);
 }
 
+async function stopAnswerScanner() {
+  cancelAnimationFrame(scannerFrame);
+  scannerFrame = undefined;
+  scanner?.classList.add("hidden");
+  scannerStream?.getTracks().forEach((track) => track.stop());
+  scannerStream = undefined;
+}
+
+async function scanAnswerQr() {
+  if (!("BarcodeDetector" in window)) {
+    setMultiplayerStatus("QR scanning is not supported in this browser. Paste the answer text instead.");
+    return;
+  }
+
+  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+  scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  scannerVideo.srcObject = scannerStream;
+  await scannerVideo.play();
+  scanner.classList.remove("hidden");
+  setMultiplayerStatus("Point the host camera at the guest answer QR.");
+
+  const scanFrame = async () => {
+    let codes = [];
+    try {
+      codes = await detector.detect(scannerVideo);
+    } catch {
+      // The video may not have a decodable frame yet. Try again on the next animation frame.
+    }
+    if (codes.length > 0) {
+      answerInput.value = codes[0].rawValue;
+      await stopAnswerScanner();
+      await applyGuestAnswer(codes[0].rawValue);
+      return;
+    }
+    scannerFrame = requestAnimationFrame(scanFrame);
+  };
+
+  scannerFrame = requestAnimationFrame(scanFrame);
+}
+
 hostRoomButton.addEventListener("click", () => {
   startHost().catch((error) => setMultiplayerStatus(error.message));
 });
@@ -339,9 +398,18 @@ applyAnswerButton.addEventListener("click", () => {
   applyGuestAnswer().catch((error) => setMultiplayerStatus(error.message));
 });
 
+scanAnswerButton.addEventListener("click", () => {
+  scanAnswerQr().catch((error) => setMultiplayerStatus(error.message));
+});
+
+stopScanButton.addEventListener("click", () => {
+  stopAnswerScanner();
+  setMultiplayerStatus("Answer QR scanning stopped.");
+});
+
 copyAnswerButton.addEventListener("click", async () => {
   await navigator.clipboard.writeText(guestAnswer.value);
-  setMultiplayerStatus("Answer copied. Paste it into the host phone or computer.");
+  setMultiplayerStatus("Answer copied. Paste it into the host phone if QR scanning is unavailable.");
 });
 
 const joinSignal = new URLSearchParams(location.hash.slice(1)).get("join");

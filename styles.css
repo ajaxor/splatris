@@ -195,6 +195,41 @@ button {
   overflow-wrap: anywhere;
 }
 
+.answer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.answer-qr {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgb(7 10 24 / 72%);
+}
+
+.answer-qr img {
+  width: min(224px, 100%);
+  height: auto;
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.scanner {
+  display: grid;
+  gap: 12px;
+}
+
+.scanner video {
+  width: 100%;
+  min-height: 220px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 18px;
+  background: #070a18;
+}
+
 textarea {
   min-height: 96px;
   width: 100%;
@@ -240,6 +275,7 @@ label {
 }
 
 @media (max-width: 390px) {
+  .answer-actions,
   .qr-card,
   .player-grid {
     grid-template-columns: 1fr;
