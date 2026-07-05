@@ -1,167 +1,19 @@
-const canvas = document.querySelector("#game");
-const context = canvas.getContext("2d");
-const scoreDisplay = document.querySelector("#score");
-const livesDisplay = document.querySelector("#lives");
-const startButton = document.querySelector("#start");
-const statusDisplay = document.querySelector("#status");
-
-const blobColors = ["#ff6b9a", "#ffd166", "#8cffd2", "#7fa7ff"];
-let animationFrame;
-let blobs = [];
-let score = 0;
-let lives = 3;
-let running = false;
-let lastSpawn = 0;
-let lastTick = 0;
-
-function resetGame() {
-  blobs = [];
-  score = 0;
-  lives = 3;
-  running = true;
-  lastSpawn = 0;
-  lastTick = performance.now();
-  updateHud();
-  statusDisplay.textContent = "Tap blobs before they splat!";
-  startButton.textContent = "Restart game";
-}
-
-function updateHud() {
-  scoreDisplay.textContent = score;
-  livesDisplay.textContent = lives;
-}
-
-function spawnBlob(now) {
-  if (now - lastSpawn < Math.max(450, 1100 - score * 12)) {
-    return;
-  }
-
-  const radius = 18 + Math.random() * 16;
-  blobs.push({
-    x: radius + Math.random() * (canvas.width - radius * 2),
-    y: -radius,
-    radius,
-    speed: 85 + Math.random() * 95 + score * 1.8,
-    color: blobColors[Math.floor(Math.random() * blobColors.length)],
-  });
-  lastSpawn = now;
-}
-
-function drawBlob(blob) {
-  context.beginPath();
-  context.arc(blob.x, blob.y, blob.radius, 0, Math.PI * 2);
-  context.fillStyle = blob.color;
-  context.fill();
-  context.beginPath();
-  context.arc(blob.x - blob.radius * 0.28, blob.y - blob.radius * 0.25, blob.radius * 0.24, 0, Math.PI * 2);
-  context.fillStyle = "rgb(255 255 255 / 55%)";
-  context.fill();
-}
-
-function drawBackground() {
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#12162d";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "rgb(255 255 255 / 8%)";
-  for (let y = 52; y < canvas.height; y += 52) {
-    context.fillRect(0, y, canvas.width, 1);
-  }
-}
-
-function finishGame() {
-  running = false;
-  cancelAnimationFrame(animationFrame);
-  statusDisplay.textContent = `Game over! Final score: ${score}.`;
-}
-
-function tick(now) {
-  const elapsed = (now - lastTick) / 1000;
-  lastTick = now;
-  spawnBlob(now);
-  drawBackground();
-
-  blobs = blobs.filter((blob) => {
-    blob.y += blob.speed * elapsed;
-    drawBlob(blob);
-
-    if (blob.y - blob.radius > canvas.height) {
-      lives -= 1;
-      updateHud();
-      return false;
-    }
-
-    return true;
-  });
-
-  if (lives <= 0) {
-    finishGame();
-    return;
-  }
-
-  animationFrame = requestAnimationFrame(tick);
-}
-
-function canvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  const pointer = event.touches?.[0] ?? event;
-  return {
-    x: ((pointer.clientX - rect.left) / rect.width) * canvas.width,
-    y: ((pointer.clientY - rect.top) / rect.height) * canvas.height,
-  };
-}
-
-function popBlob(event) {
-  if (!running) {
-    return;
-  }
-
-  const point = canvasPoint(event);
-  const hitIndex = blobs.findIndex((blob) => {
-    const distance = Math.hypot(blob.x - point.x, blob.y - point.y);
-    return distance <= blob.radius + 8;
-  });
-
-  if (hitIndex >= 0) {
-    blobs.splice(hitIndex, 1);
-    score += 1;
-    updateHud();
-    statusDisplay.textContent = score % 10 === 0 ? "Combo! Keep splatting." : "Nice splat!";
-  }
-}
-
-startButton.addEventListener("click", () => {
-  cancelAnimationFrame(animationFrame);
-  resetGame();
-  animationFrame = requestAnimationFrame(tick);
-});
-
-canvas.addEventListener("click", popBlob);
-canvas.addEventListener("touchstart", (event) => {
-  event.preventDefault();
-  popBlob(event);
-}, { passive: false });
-
-drawBackground();
-
 const hostRoomButton = document.querySelector("#host-room");
 const multiplayerStatus = document.querySelector("#multiplayer-status");
 const hostTools = document.querySelector("#host-tools");
 const guestTools = document.querySelector("#guest-tools");
 const answerPanel = document.querySelector("#answer-panel");
 const qrList = document.querySelector("#qr-list");
-const roomUrl = document.querySelector("#room-url");
 const guestAnswerQr = document.querySelector("#guest-answer-qr");
-const guestAnswer = document.querySelector("#guest-answer");
 const scanAnswerButton = document.querySelector("#scan-answer");
 const scanner = document.querySelector("#scanner");
 const scannerVideo = document.querySelector("#scanner-video");
+const scannerCanvas = document.querySelector("#scanner-canvas");
 const stopScanButton = document.querySelector("#stop-scan");
-const copyAnswerButton = document.querySelector("#copy-answer");
-const answerInput = document.querySelector("#answer-input");
-const applyAnswerButton = document.querySelector("#apply-answer");
 const playerButtons = document.querySelector("#player-buttons");
 
 const maxPlayers = 4;
+const signalVersion = 1;
 const peerConnections = new Map();
 const channels = new Map();
 const playerState = Array.from({ length: maxPlayers }, (_, index) => ({
@@ -169,46 +21,84 @@ const playerState = Array.from({ length: maxPlayers }, (_, index) => ({
   pressed: false,
   connected: index === 0,
 }));
+
 let localPlayerIndex = 0;
 let isHost = false;
 let scannerStream;
 let scannerFrame;
+let scanBusy = false;
 
 const rtcConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ],
 };
 
-function encodeSignal(data) {
-  const bytes = new TextEncoder().encode(JSON.stringify(data));
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-function decodeSignal(value) {
-  const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  const binary = atob(padded);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return JSON.parse(new TextDecoder().decode(bytes));
-}
-
-function setMultiplayerStatus(message) {
+function setStatus(message) {
   multiplayerStatus.textContent = message;
 }
 
-function sendToChannel(channel, message) {
-  if (channel.readyState === "open") {
-    channel.send(JSON.stringify(message));
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function base64UrlToBytes(value) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("The QR code contains invalid data.");
+  const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function gzip(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzip(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function encodeSignal(payload) {
+  const envelope = { v: signalVersion, ...payload };
+  const bytes = new TextEncoder().encode(JSON.stringify(envelope));
+  return bytesToBase64Url(await gzip(bytes));
+}
+
+async function decodeSignal(value, expectedType) {
+  try {
+    const bytes = await gunzip(base64UrlToBytes(value.trim()));
+    const envelope = JSON.parse(new TextDecoder().decode(bytes));
+    if (envelope.v !== signalVersion || envelope.type !== expectedType) {
+      throw new Error("This is not the expected multiplayer QR code.");
+    }
+    if (!Number.isInteger(envelope.playerIndex) || envelope.playerIndex < 1 || envelope.playerIndex >= maxPlayers) {
+      throw new Error("The QR code has an invalid player slot.");
+    }
+    return envelope;
+  } catch (error) {
+    if (error.message.includes("expected multiplayer") || error.message.includes("invalid player")) throw error;
+    throw new Error("The QR code was incomplete or unreadable. Hold the phones steady and scan again.");
   }
+}
+
+function qrImage(data, label) {
+  const image = document.createElement("img");
+  image.alt = label;
+  image.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&ecc=M&margin=8&data=${encodeURIComponent(data)}`;
+  return image;
+}
+
+function sendToChannel(channel, message) {
+  if (channel?.readyState === "open") channel.send(JSON.stringify(message));
 }
 
 function broadcast(message, exceptPlayer) {
   channels.forEach((channel, playerIndex) => {
-    if (playerIndex !== exceptPlayer) {
-      sendToChannel(channel, message);
-    }
+    if (playerIndex !== exceptPlayer) sendToChannel(channel, message);
   });
 }
 
@@ -218,7 +108,7 @@ function renderPlayerButtons() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `player-toggle${player.pressed ? " is-on" : ""}`;
-    button.disabled = index !== localPlayerIndex;
+    button.disabled = index !== localPlayerIndex || !player.connected;
     button.innerHTML = `<span>${player.name}</span><small>${player.connected ? "connected" : "waiting"} · ${player.pressed ? "on" : "off"}</small>`;
     button.addEventListener("click", () => {
       player.pressed = !player.pressed;
@@ -234,23 +124,14 @@ function applyRemoteState(message, sourcePlayer) {
     playerState[message.playerIndex].connected = true;
     sendToChannel(channels.get(message.playerIndex), { type: "snapshot", players: playerState });
     broadcast({ type: "connected", playerIndex: message.playerIndex }, message.playerIndex);
-  }
-
-  if (message.type === "snapshot") {
+  } else if (message.type === "snapshot") {
     message.players.forEach((player, index) => Object.assign(playerState[index], player));
-  }
-
-  if (message.type === "connected") {
+  } else if (message.type === "connected") {
     playerState[message.playerIndex].connected = true;
+  } else if (message.type === "state") {
+    playerState[message.playerIndex].pressed = Boolean(message.pressed);
+    if (isHost) broadcast(message, sourcePlayer);
   }
-
-  if (message.type === "state") {
-    playerState[message.playerIndex].pressed = message.pressed;
-    if (isHost) {
-      broadcast(message, sourcePlayer);
-    }
-  }
-
   renderPlayerButtons();
 }
 
@@ -262,26 +143,28 @@ function wireChannel(playerIndex, channel) {
       sendToChannel(channel, { type: "snapshot", players: playerState });
       broadcast({ type: "connected", playerIndex }, playerIndex);
     } else {
-      sendToChannel(channel, { type: "hello", playerIndex });
+      sendToChannel(channel, { type: "hello", playerIndex: localPlayerIndex });
     }
-    setMultiplayerStatus(`${playerState[playerIndex].name} connected.`);
+    setStatus(`${playerState[playerIndex].name} connected.`);
     renderPlayerButtons();
   });
-  channel.addEventListener("message", (event) => applyRemoteState(JSON.parse(event.data), playerIndex));
+  channel.addEventListener("message", event => {
+    try { applyRemoteState(JSON.parse(event.data), playerIndex); }
+    catch { setStatus("Received an invalid multiplayer message."); }
+  });
   channel.addEventListener("close", () => {
     playerState[playerIndex].connected = playerIndex === localPlayerIndex;
     renderPlayerButtons();
   });
 }
 
-function waitForIce(peerConnection) {
-  if (peerConnection.iceGatheringState === "complete") {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve) => {
+function waitForIce(peerConnection, timeoutMs = 10000) {
+  if (peerConnection.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise(resolve => {
+    const timeout = setTimeout(resolve, timeoutMs);
     peerConnection.addEventListener("icegatheringstatechange", () => {
       if (peerConnection.iceGatheringState === "complete") {
+        clearTimeout(timeout);
         resolve();
       }
     });
@@ -290,12 +173,12 @@ function waitForIce(peerConnection) {
 
 async function makeOffer(playerIndex) {
   const peerConnection = new RTCPeerConnection(rtcConfiguration);
-  const channel = peerConnection.createDataChannel("splatris-buttons");
+  const channel = peerConnection.createDataChannel("multiplayer-test");
   peerConnections.set(playerIndex, peerConnection);
   wireChannel(playerIndex, channel);
   await peerConnection.setLocalDescription(await peerConnection.createOffer());
   await waitForIce(peerConnection);
-  return encodeSignal({ playerIndex, offer: peerConnection.localDescription });
+  return encodeSignal({ type: "offer", playerIndex, description: peerConnection.localDescription });
 }
 
 async function startHost() {
@@ -304,8 +187,7 @@ async function startHost() {
   hostRoomButton.disabled = true;
   hostTools.classList.remove("hidden");
   answerPanel.classList.remove("hidden");
-  roomUrl.textContent = location.href.split("#")[0];
-  setMultiplayerStatus("Creating player QR codes...");
+  setStatus("Creating player QR codes...");
   qrList.innerHTML = "";
 
   for (let playerIndex = 1; playerIndex < maxPlayers; playerIndex += 1) {
@@ -313,109 +195,107 @@ async function startHost() {
     const joinUrl = `${location.href.split("#")[0]}#join=${signal}`;
     const card = document.createElement("article");
     card.className = "qr-card";
-    card.innerHTML = `<img alt="QR code for Player ${playerIndex + 1}" src="https://api.qrserver.com/v1/create-qr-code/?size=224x224&data=${encodeURIComponent(joinUrl)}"><div><strong>Player ${playerIndex + 1}</strong><span>${joinUrl}</span></div>`;
+    const title = document.createElement("strong");
+    title.textContent = `Player ${playerIndex + 1}`;
+    card.append(qrImage(joinUrl, `Join QR code for Player ${playerIndex + 1}`), title);
     qrList.append(card);
   }
 
-  setMultiplayerStatus("Ready. Have each phone scan a different player QR, then scan its answer QR below.");
+  setStatus("Ready. Joining phones should scan one player QR code each.");
   renderPlayerButtons();
 }
 
 async function connectGuest(signal) {
-  const { playerIndex, offer } = decodeSignal(signal);
+  const { playerIndex, description } = await decodeSignal(signal, "offer");
   localPlayerIndex = playerIndex;
   playerState[playerIndex].connected = true;
   const peerConnection = new RTCPeerConnection(rtcConfiguration);
   peerConnections.set(0, peerConnection);
-  peerConnection.addEventListener("datachannel", (event) => wireChannel(0, event.channel));
-  await peerConnection.setRemoteDescription(offer);
+  peerConnection.addEventListener("datachannel", event => wireChannel(0, event.channel));
+  await peerConnection.setRemoteDescription(description);
   await peerConnection.setLocalDescription(await peerConnection.createAnswer());
   await waitForIce(peerConnection);
+
+  const answerSignal = await encodeSignal({
+    type: "answer",
+    playerIndex,
+    description: peerConnection.localDescription,
+  });
+  guestAnswerQr.replaceChildren(qrImage(answerSignal, `Answer QR code for Player ${playerIndex + 1}`));
   guestTools.classList.remove("hidden");
-  guestAnswer.value = encodeSignal({ playerIndex, answer: peerConnection.localDescription });
-  guestAnswerQr.innerHTML = `<img alt="Answer QR code for Player ${playerIndex + 1}" src="https://api.qrserver.com/v1/create-qr-code/?size=224x224&data=${encodeURIComponent(guestAnswer.value)}">`;
-  setMultiplayerStatus(`You are Player ${playerIndex + 1}. Show this answer QR to the host.`);
+  setStatus(`You are Player ${playerIndex + 1}. Show the QR below to the host.`);
   renderPlayerButtons();
 }
 
-async function applyGuestAnswer(signal = answerInput.value.trim()) {
-  const { playerIndex, answer } = decodeSignal(signal);
+async function applyGuestAnswer(signal) {
+  const { playerIndex, description } = await decodeSignal(signal, "answer");
   const peerConnection = peerConnections.get(playerIndex);
-  if (!peerConnection) {
-    setMultiplayerStatus("That answer does not match an open player slot.");
-    return;
-  }
-  await peerConnection.setRemoteDescription(answer);
-  answerInput.value = "";
-  setMultiplayerStatus(`Applied Player ${playerIndex + 1}'s answer. Waiting for the data channel to open...`);
+  if (!peerConnection) throw new Error("That QR code does not match an open player slot.");
+  if (peerConnection.currentRemoteDescription) throw new Error(`Player ${playerIndex + 1} is already connected.`);
+  await peerConnection.setRemoteDescription(description);
+  setStatus(`Player ${playerIndex + 1} answer accepted. Connecting...`);
 }
 
-async function stopAnswerScanner() {
+async function stopScanner() {
   cancelAnimationFrame(scannerFrame);
   scannerFrame = undefined;
-  scanner?.classList.add("hidden");
-  scannerStream?.getTracks().forEach((track) => track.stop());
+  scanBusy = false;
+  scanner.classList.add("hidden");
+  scannerStream?.getTracks().forEach(track => track.stop());
   scannerStream = undefined;
+  scannerVideo.srcObject = null;
 }
 
 async function scanAnswerQr() {
-  if (!("BarcodeDetector" in window)) {
-    setMultiplayerStatus("QR scanning is not supported in this browser. Paste the answer text instead.");
-    return;
-  }
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera access is not available in this browser.");
+  if (typeof jsQR !== "function") throw new Error("The QR scanner could not load. Check the internet connection and reload.");
 
-  const detector = new BarcodeDetector({ formats: ["qr_code"] });
-  scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  scannerStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  });
   scannerVideo.srcObject = scannerStream;
   await scannerVideo.play();
   scanner.classList.remove("hidden");
-  setMultiplayerStatus("Point the host camera at the guest answer QR.");
+  setStatus("Point the host camera at the joining player’s QR code.");
 
+  const context = scannerCanvas.getContext("2d", { willReadFrequently: true });
   const scanFrame = async () => {
-    let codes = [];
-    try {
-      codes = await detector.detect(scannerVideo);
-    } catch {
-      // The video may not have a decodable frame yet. Try again on the next animation frame.
-    }
-    if (codes.length > 0) {
-      answerInput.value = codes[0].rawValue;
-      await stopAnswerScanner();
-      await applyGuestAnswer(codes[0].rawValue);
-      return;
+    if (!scannerStream) return;
+    if (!scanBusy && scannerVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      scannerCanvas.width = scannerVideo.videoWidth;
+      scannerCanvas.height = scannerVideo.videoHeight;
+      context.drawImage(scannerVideo, 0, 0);
+      const imageData = context.getImageData(0, 0, scannerCanvas.width, scannerCanvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+      if (code?.data) {
+        scanBusy = true;
+        try {
+          await applyGuestAnswer(code.data);
+          await stopScanner();
+          return;
+        } catch (error) {
+          setStatus(error.message);
+          scanBusy = false;
+        }
+      }
     }
     scannerFrame = requestAnimationFrame(scanFrame);
   };
-
   scannerFrame = requestAnimationFrame(scanFrame);
 }
 
-hostRoomButton.addEventListener("click", () => {
-  startHost().catch((error) => setMultiplayerStatus(error.message));
-});
-
-applyAnswerButton.addEventListener("click", () => {
-  applyGuestAnswer().catch((error) => setMultiplayerStatus(error.message));
-});
-
-scanAnswerButton.addEventListener("click", () => {
-  scanAnswerQr().catch((error) => setMultiplayerStatus(error.message));
-});
-
+hostRoomButton.addEventListener("click", () => startHost().catch(error => setStatus(error.message)));
+scanAnswerButton.addEventListener("click", () => scanAnswerQr().catch(error => setStatus(error.message)));
 stopScanButton.addEventListener("click", () => {
-  stopAnswerScanner();
-  setMultiplayerStatus("Answer QR scanning stopped.");
-});
-
-copyAnswerButton.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(guestAnswer.value);
-  setMultiplayerStatus("Answer copied. Paste it into the host phone if QR scanning is unavailable.");
+  stopScanner();
+  setStatus("Camera closed.");
 });
 
 const joinSignal = new URLSearchParams(location.hash.slice(1)).get("join");
 if (joinSignal) {
   hostRoomButton.classList.add("hidden");
-  connectGuest(joinSignal).catch((error) => setMultiplayerStatus(error.message));
+  connectGuest(joinSignal).catch(error => setStatus(error.message));
 }
 
 renderPlayerButtons();
